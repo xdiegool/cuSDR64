@@ -28,16 +28,23 @@
 #ifndef _CUSDR_CHIRP_WIDGET_H
 #define _CUSDR_CHIRP_WIDGET_H
 
-#include <QWidget>
-#include <QComboBox>
-#include <QGroupBox>
-#include <QSpinBox>
-#include <QLineEdit>
-#include <QtMultimedia/qaudio.h>
+//#include <QWidget>
+//#include <QComboBox>
+//#include <QGroupBox>
+//#include <QSpinBox>
+//#include <QLineEdit>
+//#include <QtMultimedia/qaudio.h>
 
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
+#include "Util/cusdr_fonts.h"
 #include "cusdr_settings.h"
-//#include "audioengine/frequencyspectrum.h"
+
+
+#ifdef LOG_CHIRP_WIDGET
+#   define CHIRP_WIDGET_DEBUG qDebug().nospace() << "ChirpWidget::\t"
+#else
+#   define CHIRP_WIDGET_DEBUG nullDebug()
+#endif
 
 
 class ChirpWidget : public QWidget {
@@ -65,17 +72,18 @@ private:
 	void	createSpectrum();
 	
 private:
-	Settings*	m_settings;
+	Settings				*set;
 
-	QSDR::_ServerMode			m_serverMode;
+	QSDR::_ServerMode		m_serverMode;
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-	QString			m_menu_style;
-	QFont			m_titleFont;
-	QFont			m_smallFont;
+	CFonts			*fonts;
+	TFonts			m_fonts;
 
+	QString			m_menu_style;
 	QString			lineedit_style;
+
 	QLabel			*labelAudioPortLabel;
 	QLabel			*labelAudioPortText;
 	QLabel			*spectrumLabel;
@@ -168,10 +176,10 @@ private:
 	bool		m_mouseOver;
 	bool		m_showChirpFFT;
 	bool		m_chirpUSB;
+
 	int			m_minimumWidgetWidth;
 	int			m_minimumGroupBoxWidth;
 	int			m_btnSpacing;
-
 	int			m_cnt;
 
 private slots:

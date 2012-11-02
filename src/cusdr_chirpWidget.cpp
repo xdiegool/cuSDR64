@@ -27,10 +27,10 @@
 
 #define LOG_CHIRP_WIDGET
 
-#include <QtGui>
-#include <QPen>
-#include <QDebug>
-#include <QScopedPointer>
+//#include <QtGui>
+//#include <QPen>
+//#include <QDebug>
+//#include <QScopedPointer>
 
 #include "cusdr_chirpWidget.h"
 
@@ -40,52 +40,28 @@
 
 ChirpWidget::ChirpWidget(QWidget *parent) 
 	: QWidget(parent)
-	, m_settings(Settings::instance())
-	, m_minimumWidgetWidth(m_settings->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(m_settings->getMinimumGroupBoxWidth())
-	, m_serverMode(m_settings->getCurrentServerMode())
-	, m_hwInterface(m_settings->getHWInterface())
-	, m_dataEngineState(m_settings->getDataEngineState())
-	, m_btnSpacing(5)
+	, set(Settings::instance())
+	, m_serverMode(set->getCurrentServerMode())
+	, m_hwInterface(set->getHWInterface())
+	, m_dataEngineState(set->getDataEngineState())
+	, m_timeScaleMax(2)
+	, m_graphWidth(200)
+	, m_graphHeight(100)
 	, m_antialiased(true)
 	, m_mouseOver(false)
 	, m_showChirpFFT(false)
 	, m_chirpUSB(false)
+	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+	, m_btnSpacing(5)
 	, m_cnt(0)
-	, m_graphHeight(100)
-	, m_graphWidth(200)
-	, m_timeScaleMax(2)
 {
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
-	//QFont titleFont;
-	m_titleFont.setStyleStrategy(QFont::PreferQuality);
-	m_titleFont.setFixedPitch(true);
-	#ifdef Q_OS_MAC
-		m_titleFont.setPixelSize(11);
-		m_titleFont.setFamily("Arial");
-		//m_smallFont.setBold(true);
-	#else if Q_OS_WIN
-		m_titleFont.setPixelSize(11);
-		m_titleFont.setFamily("Arial");
-		//m_smallFont.setBold(true);
-		//m_smallFont.setItalic(true);
-	#endif
-
-	m_smallFont.setStyleStrategy(QFont::PreferAntialias);
-	m_smallFont.setFixedPitch(true);
-	#ifdef Q_OS_MAC
-		m_smallFont.setPixelSize(9);
-		m_smallFont.setFamily("Arial");
-		//m_smallFont.setBold(true);
-	#else if Q_OS_WIN
-		m_smallFont.setPixelSize(9);
-		m_smallFont.setFamily("Arial");
-		//m_smallFont.setBold(true);
-		//m_smallFont.setItalic(true);
-	#endif
+	fonts = new CFonts(this);
+	m_fonts = fonts->getFonts();
 
 	m_stripes.resize(100);
 	m_timeScale = m_graphWidth / m_timeScaleMax;
@@ -98,7 +74,7 @@ ChirpWidget::ChirpWidget(QWidget *parent)
 	createChirpSignalGroup();
 	createMatchedFilterControlGroup();
 	
-	m_settings->setChirpReceiver(false);
+	set->setChirpReceiver(false);
 
 	spectrumLabel = new QLabel(this);
 	createChirpSpectrumGroup();
@@ -159,7 +135,7 @@ ChirpWidget::ChirpWidget(QWidget *parent)
 ChirpWidget::~ChirpWidget() {
 
 	// disconnect all signals
-	disconnect(m_settings, 0, this, 0);
+	disconnect(set, 0, this, 0);
 	disconnect(this, 0, 0, 0);
 }
 
@@ -176,43 +152,43 @@ QSize ChirpWidget::minimumSizeHint() const {
 void ChirpWidget::setupConnections() {
 
 	/*CHECKED_CONNECT(
-		m_settings,
+		set,
 		SIGNAL(audioBufferChanged(QObject *, qint64, qint64, const QByteArray)),
 		this,
 		SLOT(chirpBufferChanged(QObject *, qint64, qint64, const QByteArray)));*/
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(lowerChirpFreqChanged(QObject *, int)), 
 		this, 
 		SLOT(setChirpLowerFrequency(QObject *, int)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(upperChirpFreqChanged(QObject *, int)), 
 		this, 
 		SLOT(setChirpUpperFrequency(QObject *, int)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(chirpBufferDurationUsChanged(QObject *, qint64)), 
 		this, 
 		SLOT(setChirpBufferDurationUs(QObject *, qint64)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(chirpRepetitionTimesChanged(QObject *, int)), 
 		this, 
 		SLOT(setChirpRepetitionTimes(QObject *, int)));
 
 	/*CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(chirpSpectrumChanged(qint64, qint64, const FrequencySpectrum &)),
         this, 
 		SLOT(chirpSpectrumChanged(qint64, qint64, const FrequencySpectrum &)));*/
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(chirpSpectrumListChanged(const QList<FrequencySpectrum> &)),
         this, 
 		SLOT(chirpSpectrumListChanged(const QList<FrequencySpectrum> &)));
@@ -246,13 +222,7 @@ void ChirpWidget::createChirpModeGroup() {
 	/*rcveBtn = new AeroButton("Receiver", this);
 	rcveBtn->setRoundness(10);
 	rcveBtn->setFixedSize(btn_width, btn_height);
-	rcveBtn->setBtnState(AeroButton::OFF);
-
-	CHECKED_CONNECT(
-		rcveBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(setReceiver()));*/
+	rcveBtn->setBtnState(AeroButton::OFF);*/
 
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
@@ -276,7 +246,7 @@ void ChirpWidget::createChirpModeGroup() {
 	chirpModeGroupBox = new QGroupBox(tr("Chirp WSPR"), this);
 	chirpModeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	chirpModeGroupBox->setLayout(vbox);
-	chirpModeGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	chirpModeGroupBox->setStyleSheet(set->getWidgetStyle());
 	chirpModeGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -330,76 +300,76 @@ void ChirpWidget::createPlayFileGroup() {
 	playFileGroupBox = new QGroupBox(tr("Sound File"), this);
 	playFileGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	playFileGroupBox->setLayout(vbox);
-	playFileGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	playFileGroupBox->setStyleSheet(set->getWidgetStyle());
 	playFileGroupBox->setFont(QFont("Arial", 8));
 }
 
 void ChirpWidget::createChirpSignalGroup() {
 
-	QFontMetrics d_fm(m_titleFont);
-	int fontMaxWidth = d_fm.boundingRect("00000").width();
+	//QFontMetrics d_fm(m_titleFont);
+	int fontMaxWidth = m_fonts.normalFontMetrics->boundingRect("00000").width();
 
 	QLabel *minFLabel = new QLabel(tr("lo :"), this);
-	minFLabel->setFont(m_titleFont);
-	minFLabel->setStyleSheet(m_settings->getLabelStyle());
+	minFLabel->setFont(m_fonts.normalFont);
+	minFLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *maxFLabel = new QLabel(tr("hi :"), this);
-	maxFLabel->setFont(m_titleFont);
-	maxFLabel->setStyleSheet(m_settings->getLabelStyle());
+	maxFLabel->setFont(m_fonts.normalFont);
+	maxFLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *freqLabel = new QLabel(tr(" Hz"), this);
-	freqLabel->setFont(m_titleFont);
-	freqLabel->setStyleSheet(m_settings->getLabelStyle());
+	freqLabel->setFont(m_fonts.normalFont);
+	freqLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *timeLabel = new QLabel(tr("chirp length :"), this);
-	timeLabel->setFont(m_titleFont);
-	timeLabel->setStyleSheet(m_settings->getLabelStyle());
+	timeLabel->setFont(m_fonts.normalFont);
+	timeLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *msecLabel = new QLabel(tr(" ms"), this);
-	msecLabel->setFont(m_titleFont);
-	msecLabel->setStyleSheet(m_settings->getLabelStyle());
+	msecLabel->setFont(m_fonts.normalFont);
+	msecLabel->setStyleSheet(set->getLabelStyle());
 
 	/*QLabel *repetitionLabel = new QLabel(tr("repetitions :"), this);
 	repetitionLabel->setFont(m_titleFont);
-	repetitionLabel->setStyleSheet(m_settings->getLabelStyle());*/
+	repetitionLabel->setStyleSheet(set->getLabelStyle());*/
 
 	lowerFreqSpinBox = new QSpinBox(this);
-	lowerFreqSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	lowerFreqSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	lowerFreqSpinBox->setFixedWidth(fontMaxWidth + 30);
 	lowerFreqSpinBox->setRange(0, 10000);
 	lowerFreqSpinBox->setSingleStep(10);
-	lowerFreqSpinBox->setValue(m_settings->getLowerChirpFreq());
+	lowerFreqSpinBox->setValue(set->getLowerChirpFreq());
 
 	CHECKED_CONNECT(
 		lowerFreqSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setLowerChirpFreq(int)));
 
 	upperFreqSpinBox = new QSpinBox(this);
-	upperFreqSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	upperFreqSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	upperFreqSpinBox->setFixedWidth(fontMaxWidth + 30);
 	upperFreqSpinBox->setRange(50, 10000);
 	upperFreqSpinBox->setSingleStep(10);
-	upperFreqSpinBox->setValue(m_settings->getUpperChirpFreq());
+	upperFreqSpinBox->setValue(set->getUpperChirpFreq());
 
 	CHECKED_CONNECT(
 		upperFreqSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setUpperChirpFreq(int)));
 
 	timeSpinBox = new QSpinBox(this);
-	timeSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	timeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	timeSpinBox->setFixedWidth(fontMaxWidth + 30);
 	timeSpinBox->setRange(100, 10000);
 	timeSpinBox->setSingleStep(1);
-	timeSpinBox->setValue(m_settings->getChirpBufferDurationUs()/1000);
+	timeSpinBox->setValue(set->getChirpBufferDurationUs()/1000);
 
 	CHECKED_CONNECT(
 		timeSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setChirpBufferDurationUs(int)));
 
 	CHECKED_CONNECT(
@@ -409,15 +379,15 @@ void ChirpWidget::createChirpSignalGroup() {
 		SLOT(stripeResize(int)));
 
 	/*repetitionSpinBox = new QSpinBox(this);
-	repetitionSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	repetitionSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	repetitionSpinBox->setFixedWidth(fontMaxWidth + 30);
 	repetitionSpinBox->setRange(1, 10);
 	repetitionSpinBox->setSingleStep(1);
-	repetitionSpinBox->setValue(m_settings->getChirpRepetitionTimes());
+	repetitionSpinBox->setValue(set->getChirpRepetitionTimes());
 	CHECKED_CONNECT(
 		repetitionSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setChirpRepetitionTimes(int)));*/
 
 	playChirpBtn = new AeroButton("Play", this);
@@ -518,7 +488,7 @@ void ChirpWidget::createChirpSignalGroup() {
 	chirpSignalGroupBox = new QGroupBox(tr("Chirp Signal"), this);
 	chirpSignalGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	chirpSignalGroupBox->setLayout(vbox);
-	chirpSignalGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	chirpSignalGroupBox->setStyleSheet(set->getWidgetStyle());
 	chirpSignalGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -537,14 +507,14 @@ void ChirpWidget::createChirpSpectrumGroup() {
 	chirpSpectrumGroupBox = new QGroupBox(tr("Chirp Signal Spectrum"), this);
 	chirpSpectrumGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	chirpSpectrumGroupBox->setLayout(vbox);
-	chirpSpectrumGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	chirpSpectrumGroupBox->setStyleSheet(set->getWidgetStyle());
 	chirpSpectrumGroupBox->setFont(QFont("Arial", 8));
 }
 
 void ChirpWidget::createMatchedFilterControlGroup() {
 
-	QFontMetrics d_fm(m_titleFont);
-	int fontMaxWidth = d_fm.boundingRect("00000").width();
+	//QFontMetrics d_fm(m_titleFont);
+	int fontMaxWidth = m_fonts.normalFontMetrics->boundingRect("00000").width();
 
 	/*avgBtn = new AeroButton("AVG", this);
 	avgBtn->setRoundness(10);
@@ -552,15 +522,15 @@ void ChirpWidget::createMatchedFilterControlGroup() {
 	avgBtn->setBtnState(AeroButton::OFF);*/
 	
 	QLabel *avgLabel = new QLabel(tr("Avg:"), this);
-	avgLabel->setFont(m_titleFont);
-	avgLabel->setStyleSheet(m_settings->getLabelStyle());
+	avgLabel->setFont(m_fonts.normalFont);
+	avgLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *secLabel = new QLabel(tr("   s"), this);
-	secLabel->setFont(m_titleFont);
-	secLabel->setStyleSheet(m_settings->getLabelStyle());
+	secLabel->setFont(m_fonts.normalFont);
+	secLabel->setStyleSheet(set->getLabelStyle());
 
 	avgSpinBox = new QSpinBox(this);
-	avgSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	avgSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	avgSpinBox->setFixedWidth(fontMaxWidth + 30);
 	avgSpinBox->setRange(1, 120);
 	avgSpinBox->setSingleStep(1);
@@ -569,49 +539,49 @@ void ChirpWidget::createMatchedFilterControlGroup() {
 	CHECKED_CONNECT(
 		avgSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setChirpAvgLength(int)));
 
 	/*QLabel *filterLabel = new QLabel(tr("FIR Bandpass:"), this);
 	filterLabel->setFont(m_titleFont);
-	filterLabel->setStyleSheet(m_settings->getLabelStyle());*/
+	filterLabel->setStyleSheet(set->getLabelStyle());*/
 
 	QLabel *loFilterLabel = new QLabel(tr("BPF   lo :"), this);
-	loFilterLabel->setFont(m_titleFont);
-	loFilterLabel->setStyleSheet(m_settings->getLabelStyle());
+	loFilterLabel->setFont(m_fonts.normalFont);
+	loFilterLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *upFilterLabel = new QLabel(tr("hi :"), this);
-	upFilterLabel->setFont(m_titleFont);
-	upFilterLabel->setStyleSheet(m_settings->getLabelStyle());
+	upFilterLabel->setFont(m_fonts.normalFont);
+	upFilterLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *freqFilterLabel = new QLabel(tr(" Hz"), this);
-	freqFilterLabel->setFont(m_titleFont);
-	freqFilterLabel->setStyleSheet(m_settings->getLabelStyle());
+	freqFilterLabel->setFont(m_fonts.normalFont);
+	freqFilterLabel->setStyleSheet(set->getLabelStyle());
 
 	filterLowerFreqSpinBox = new QSpinBox(this);
-	filterLowerFreqSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	filterLowerFreqSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	filterLowerFreqSpinBox->setFixedWidth(fontMaxWidth + 30);
 	filterLowerFreqSpinBox->setRange(0, 5000);
 	filterLowerFreqSpinBox->setSingleStep(10);
-	filterLowerFreqSpinBox->setValue(m_settings->getChirpFilterLowerFrequency());
+	filterLowerFreqSpinBox->setValue(set->getChirpFilterLowerFrequency());
 
 	CHECKED_CONNECT(
 		filterLowerFreqSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setChirpFilterLowerFrequency(int)));
 
 	filterUpperFreqSpinBox = new QSpinBox(this);
-	filterUpperFreqSpinBox->setStyleSheet(m_settings->getSpinBoxStyle());
+	filterUpperFreqSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	filterUpperFreqSpinBox->setFixedWidth(fontMaxWidth + 30);
 	filterUpperFreqSpinBox->setRange(50, 10000);
 	filterUpperFreqSpinBox->setSingleStep(10);
-	filterUpperFreqSpinBox->setValue(m_settings->getChirpFilterUpperFrequency());
+	filterUpperFreqSpinBox->setValue(set->getChirpFilterUpperFrequency());
 
 	CHECKED_CONNECT(
 		filterUpperFreqSpinBox,
 		SIGNAL(valueChanged(int)), 
-		m_settings, 
+		set, 
 		SLOT(setChirpFilterUpperFrequency(int)));
 
 
@@ -668,7 +638,7 @@ void ChirpWidget::createMatchedFilterControlGroup() {
 	matchedFilterControlGroupBox = new QGroupBox(tr("Matched Filter Control"), this);
 	matchedFilterControlGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	matchedFilterControlGroupBox->setLayout(vbox);
-	matchedFilterControlGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	matchedFilterControlGroupBox->setStyleSheet(set->getWidgetStyle());
 	matchedFilterControlGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -686,7 +656,7 @@ void ChirpWidget::showFileDialog() {
 
     if (fileNames.count()) {
 		
-		m_settings->setSystemState(						
+		set->setSystemState(						
 						this, 
 						QSDR::NoError,
 						//m_hwInterface,
@@ -717,7 +687,7 @@ void ChirpWidget::initChirpDecoder() {
 		pauseBtn->setEnabled(false);
 		loadFileBtn->update();
 
-		m_settings->setSystemState(						
+		set->setSystemState(						
 						this, 
 						QSDR::NoError,
 						m_hwInterface, 
@@ -726,7 +696,7 @@ void ChirpWidget::initChirpDecoder() {
 		emit messageEvent("[server]: switched to chirp decode mode.");
 	}
 
-	m_settings->switchToChirpSignalMode(this);
+	set->switchToChirpSignalMode(this);
 }
 
 void ChirpWidget::setReceiver() {
@@ -734,14 +704,14 @@ void ChirpWidget::setReceiver() {
 	if (rcveBtn->btnState() == AeroButton::OFF) {
 
 		rcveBtn->setBtnState(AeroButton::ON);
-		m_settings->setChirpReceiver(true);
+		set->setChirpReceiver(true);
 		
 	}
 	else
 	if (rcveBtn->btnState() == AeroButton::ON) {
 
 		rcveBtn->setBtnState(AeroButton::OFF);
-		m_settings->setChirpReceiver(false);
+		set->setChirpReceiver(false);
 	}
 }
 
@@ -750,13 +720,13 @@ void ChirpWidget::showChirpFFT() {
 	if (m_showChirpFFT) {
 
 		showChirpFFTBtn->setBtnState(AeroButton::OFF);
-		m_settings->setChirpFFTShow(false);
+		set->setChirpFFTShow(false);
 		m_showChirpFFT = false;
 	}
 	else {
 
 		showChirpFFTBtn->setBtnState(AeroButton::ON);
-		m_settings->setChirpFFTShow(true);
+		set->setChirpFFTShow(true);
 		m_showChirpFFT = true;
 	}
 
@@ -770,7 +740,7 @@ void ChirpWidget::switchSideband() {
 		chirpUSBBtn->setBtnState(AeroButton::ON);
 		chirpLSBBtn->update();
 		chirpUSBBtn->update();
-		m_settings->setChirpUSB(true);
+		set->setChirpUSB(true);
 		m_chirpUSB = false;
 	}
 	else {
@@ -779,7 +749,7 @@ void ChirpWidget::switchSideband() {
 		chirpUSBBtn->setBtnState(AeroButton::OFF);
 		chirpLSBBtn->update();
 		chirpUSBBtn->update();
-		m_settings->setChirpUSB(false);
+		set->setChirpUSB(false);
 		m_chirpUSB = true;
 	}
 }
@@ -911,8 +881,8 @@ QPair<qreal, qreal> ChirpWidget::stripeRange(int index) const {
 
 void ChirpWidget::stripeFreqRange() {
 
-	//int lo = m_settings->getLowerChirpFreq();
-	int hi = m_settings->getUpperChirpFreq();
+	//int lo = set->getLowerChirpFreq();
+	int hi = set->getUpperChirpFreq();
 
 	//int unit = qRound((hi - lo) / 8);
 	//m_lowFreq = 100;
@@ -1014,11 +984,11 @@ QImage* ChirpWidget::createSpectrumImage(const QRect& rect) {
 	if (!image) return NULL;
 
 	QPainter painter(image);
-	painter.setFont(m_smallFont);
+	painter.setFont(m_fonts.smallFont);
 	//painter.fillRect(image->rect(), Qt::transparent);
 	painter.fillRect(image->rect(), Qt::black);
 
-	QFontMetrics sfm(m_smallFont);
+	QFontMetrics sfm(m_fonts.smallFont);
 	m_fontHeight = sfm.height();
 	m_maxFontWidth = sfm.width("00000 Hz");
 

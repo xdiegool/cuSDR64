@@ -28,13 +28,19 @@
 #ifndef _CUSDR_HPSDR_WIDGET_H
 #define _CUSDR_HPSDR_WIDGET_H
 
-#include <QWidget>
-#include <QGroupBox>
-#include <QSpinBox>
-#include <QLineEdit>
+//#include <QWidget>
+//#include <QGroupBox>
+//#include <QSpinBox>
+//#include <QLineEdit>
 
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
+
+#ifdef LOG_HPSDR_WIDGET
+#   define HPSDR_WIDGET_DEBUG qDebug().nospace() << "HPSDRWidget::\t"
+#else
+#   define HPSDR_WIDGET_DEBUG nullDebug()
+#endif
 
 
 class HPSDRWidget : public QWidget {
@@ -47,84 +53,47 @@ public:
 
 
 public slots:
-	void	addDeviceNICEntry(QString niName, QString ipAddress);
-	void	addNICChangedConnection();
-	void	setSocketBufSize(QObject *sender, int size);
 	void	hpsdrHardwareChanged();
-	void	hwInterfaceChanged();
 	void	penelopePresenceChanged();
 	void	pennyPresenceChanged();
 	void	mercuryPresenceChanged();
 	void	alexPresenceChanged();
 	void	excaliburPresenceChanged();
 	void	source122_88MhzChanged();
-	
-protected:
-	void	closeEvent(QCloseEvent *event);
-	void	showEvent(QShowEvent *event);
-	void	enterEvent(QEvent *event);
-	void	leaveEvent(QEvent *event);
-	void	mouseMoveEvent(QMouseEvent *event);
-	void	mousePressEvent(QMouseEvent *event);
-	void	mouseReleaseEvent(QMouseEvent *event);
 
 private:
-	Settings*	m_settings;
+	Settings	*set;
 
+	QGroupBox	*hpsdrHardwareBtnGroup();
+	QGroupBox	*receiversExclusiveBtnGroup();
+	QGroupBox	*source10MhzExclusiveGroup;
+	QGroupBox	*source122_88MhzExclusiveGroup;
+	QGroupBox	*sampleRateExclusiveGroup();
+	QGroupBox	*numberOfReceiversGroup();
+	
+	QComboBox	*m_receiverComboBox;
+
+	QLabel		*m_receiversLabel;
+	
 	QString		m_message;
 
-	QGroupBox*	hpsdrHardwareBtnGroup();
-	QGroupBox*	hpsdrInterfaceExclusiveBtnGroup();
-	QGroupBox*	receiversExclusiveBtnGroup();
-	QGroupBox*	source10MhzExclusiveGroup;
-	QGroupBox*	source122_88MhzExclusiveGroup;
-	QGroupBox*	deviceNIGroupBox;
-	QGroupBox*	searchNetworkDeviceGroupBox;
-	QGroupBox*	socketBufferSizeGroupBox;
-	QGroupBox*	numberOfReceiversGroup();
-	
-	QComboBox*	networkDeviceInterfaces;
-	QComboBox*	networkDeviceIPAdresses;
-	QComboBox*	socketBufferSizes;
-	QComboBox*	m_receiverComboBox;
+	AeroButton	*hermesPresenceBtn;
+	AeroButton	*modulesPresenceBtn;
+	AeroButton	*penelopePresenceBtn;
+	AeroButton	*pennyPresenceBtn;
+	AeroButton	*mercuryPresenceBtn;
+	AeroButton	*alexPresenceBtn;
+	AeroButton	*excaliburPresenceBtn;
+	AeroButton	*atlasBtn;
+	AeroButton	*penelopeBtn;
+	AeroButton	*mercuryBtn;
+	AeroButton	*penelope2Btn;
+	AeroButton	*mercury2Btn;
+	AeroButton	*rx1to2Btn;
+	AeroButton	*samplerate48Btn;
+	AeroButton	*samplerate96Btn;
+	AeroButton	*samplerate192Btn;
 
-	QLabel*		m_receiversLabel;
-	
-	AeroButton*	networkPresenceBtn;
-	AeroButton*	noHWBtn;
-
-	AeroButton*	hermesPresenceBtn;
-	AeroButton*	modulesPresenceBtn;
-	AeroButton*	penelopePresenceBtn;
-	AeroButton*	pennyPresenceBtn;
-	AeroButton*	mercuryPresenceBtn;
-	AeroButton*	alexPresenceBtn;
-	AeroButton*	excaliburPresenceBtn;
-	
-
-	AeroButton*	searchNetworkDeviceBtn;
-	
-	AeroButton*	atlasBtn;
-	AeroButton*	penelopeBtn;
-	AeroButton*	mercuryBtn;
-	AeroButton*	penelope2Btn;
-	AeroButton*	mercury2Btn;
-
-	/*AeroButton*	rx1Btn;
-	AeroButton*	rx2Btn;
-	AeroButton*	rx3Btn;
-	AeroButton*	rx4Btn;
-	AeroButton*	rx5Btn;
-	AeroButton*	rx6Btn;
-	AeroButton*	rx7Btn;*/
-
-	AeroButton*	rx1to2Btn;
-
-	/*AeroButton*	view1Btn;
-	AeroButton*	view2Btn;
-	AeroButton*	view3Btn;*/
-
-	AeroButton*	socketBufSizeBtn;
 
 	QList<AeroButton *>	hardwareBtnList;
 	QList<AeroButton *>	source10MhzBtnList;
@@ -137,8 +106,6 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterfaceTemp;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-	QList<TNetworkDevicecard>	m_deviceCards;
-
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 	int		m_numberOfReceivers;
@@ -146,9 +113,6 @@ private:
 	int		m_socketBufferSize;
 
 	void	setupConnections();
-	void	createDeviceNetworkInterfaceGroup();
-	void	createDeviceSearchGroup();
-	void	createsocketBufferSizeGroup();
 	void	createSource10MhzExclusiveGroup();
 	void	createSource122_88MhzExclusiveGroup();
 
@@ -162,25 +126,16 @@ private slots:
 
 	void	setHPSDRHardware();
 	void	source10MhzChanged();
-	void	interfaceBtnClicked();
-	void	searchHPSDRDeviceBtnClicked();
-	void	socketBufSizeBtnClicked();
-	void	setSocketBufferSize(int value);
-	void	setClientConnected(QObject *sender, bool value);
-	void	setConnected(QObject *sender, bool value);
-	void	setDeviceNIC(int index);
-	void	setNetworkDeviceList(QList<TNetworkDevicecard> list);
-	void	setCurrentNetworkDevice(TNetworkDevicecard card);
 	void	setNumberOfReceivers(int value);
 	void	setShow1on2();
-	void	numberOfReceiversChanged(int value);
 	void	disableButtons();
 	void	enableButtons();
-	void	setView();
+	void 	sampleRateChangedTo48();
+	void 	sampleRateChangedTo96();
+	void 	sampleRateChangedTo192();
+
 	
 signals:
-	void	showEvent(QObject *sender);
-	void	closeEvent(QObject *sender);
 	void	messageEvent(QString message);
 };
 

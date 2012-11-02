@@ -37,19 +37,20 @@
 
 RadioWidget::RadioWidget(QWidget *parent) 
 	: QWidget(parent)
-	, m_settings(Settings::instance())
-	, m_currentRx(m_settings->getCurrentReceiver())
-	, m_minimumWidgetWidth(m_settings->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(m_settings->getMinimumGroupBoxWidth())
+	, set(Settings::instance())
+	, m_currentRx(set->getCurrentReceiver())
+	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	
-	m_receiverDataList = m_settings->getReceiverDataList();
+	m_receiverDataList = set->getReceiverDataList();
 
 	m_hamBand = m_receiverDataList.at(0).hamBand;
-	m_dspMode = m_receiverDataList.at(0).dspMode;
-	m_agcMode = m_receiverDataList.at(0).agcMode;
+	//m_dspMode = m_receiverDataList.at(0).dspMode;
+	m_dspModeList = m_receiverDataList.at(0).dspModeList;
+	//m_agcMode = m_receiverDataList.at(0).agcMode;
 	m_filterMode = m_receiverDataList.at(0).defaultFilterMode;
 	m_filterLo = m_receiverDataList.at(0).filterLo;
 	m_filterHi = m_receiverDataList.at(0).filterHi;
@@ -58,7 +59,6 @@ RadioWidget::RadioWidget(QWidget *parent)
 
 	createBandBtnGroup();
 	createModeBtnGroup();
-	createAgcBtnGroup();
 	createFilterBtnGroupA();
 	createFilterBtnGroupB();
 	createFilterBtnGroupC();
@@ -103,19 +103,7 @@ RadioWidget::RadioWidget(QWidget *parent)
 	hbox6->setSpacing(0);
 	hbox6->setMargin(0);
 	hbox6->addStretch();
-	hbox6->addWidget(agcGroupBox);
-
-	QHBoxLayout *hbox7 = new QHBoxLayout();
-	hbox7->setSpacing(0);
-	hbox7->setMargin(0);
-	hbox7->addStretch();
-	hbox7->addWidget(sampleRateExclusiveGroup());
-
-	QHBoxLayout *hbox8 = new QHBoxLayout();
-	hbox8->setSpacing(0);
-	hbox8->setMargin(0);
-	hbox8->addStretch();
-	hbox8->addWidget(mercuryBtnGroup());
+	hbox6->addWidget(mercuryBtnGroup());
 
 	mainLayout->addLayout(hbox1);
 	mainLayout->addLayout(hbox2);
@@ -123,30 +111,30 @@ RadioWidget::RadioWidget(QWidget *parent)
 	mainLayout->addLayout(hbox4);
 	mainLayout->addLayout(hbox5);
 	mainLayout->addLayout(hbox6);
-	mainLayout->addLayout(hbox7);
-	mainLayout->addLayout(hbox8);
 	mainLayout->addStretch();
-
 	
-	bandChanged(this, 0, m_hamBand);
-	dspModeChanged(this, 0, m_dspMode);
-	agcModeChanged(this, 0, m_agcMode);
+	// setup values from settings.ini
+	bandBtnList.at(m_hamBand)->setBtnState(AeroButton::ON);
+	bandBtnList.at(m_hamBand)->update();
+
+	dspModeChanged(this, 0, m_dspModeList.at(m_hamBand));
 	filterChanged(this, 0, m_filterLo, m_filterHi);
 
+	DSPMode dspMode = m_dspModeList.at(m_hamBand);
 
-	if (m_dspMode == 0 || m_dspMode == 1 || m_dspMode == 7 || m_dspMode == 9) {
+	if (dspMode == (DSPMode) LSB || dspMode == (DSPMode) USB || dspMode == (DSPMode) DIGU || dspMode == (DSPMode) DIGL) {
 
 		filterGroupBBox->hide();
 		filterGroupCBox->hide();
 	}
 	else 
-	if (m_dspMode == 2 || m_dspMode == 5 || m_dspMode == 6 || m_dspMode == 10) {
+	if (dspMode == (DSPMode) DSB || dspMode == (DSPMode) FMN || dspMode == (DSPMode) AM || dspMode == (DSPMode) SAM) {
 
 		filterGroupABox->hide();
 		filterGroupCBox->hide();
 	}
 	else 
-	if (m_dspMode == 3 || m_dspMode == 4) {
+	if (dspMode == (DSPMode) CWL || dspMode == (DSPMode) CWU) {
 
 		filterGroupABox->hide();
 		filterGroupBBox->hide();
@@ -158,7 +146,7 @@ RadioWidget::RadioWidget(QWidget *parent)
 
 RadioWidget::~RadioWidget() {
 
-	disconnect(m_settings, 0, this, 0);
+	disconnect(set, 0, this, 0);
 	disconnect(this, 0, 0, 0);
 }
 
@@ -175,50 +163,62 @@ QSize RadioWidget::minimumSizeHint() const {
 void RadioWidget::setupConnections() {
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(systemStateChanged(
-					QObject *, 
-					QSDR::_Error, 
-					QSDR::_HWInterfaceMode, 
-					QSDR::_ServerMode, 
-					QSDR::_DataEngineState)), 
-		this, 
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
+					QSDR::_DataEngineState)),
+		this,
 		SLOT(systemStateChanged(
-					QObject *, 
-					QSDR::_Error, 
-					QSDR::_HWInterfaceMode, 
-					QSDR::_ServerMode, 
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
 					QSDR::_DataEngineState)));
 
 	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(currentReceiverChanged(int)), 
+		set, 
+		SIGNAL(currentReceiverChanged(QObject *, int)),
 		this, 
-		SLOT(setCurrentReceiver(int)));
+		SLOT(setCurrentReceiver(QObject *, int)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(frequencyChanged(QObject *, bool, int, long)),
 		this,
 		SLOT(frequencyChanged(QObject *, bool, int, long)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
+		SIGNAL(hamBandChanged(QObject *, int, bool, HamBand)),
+		this,
+		SLOT(bandChanged(QObject *, int, bool, HamBand)));
+
+	CHECKED_CONNECT(
+		set,
 		SIGNAL(dspModeChanged(QObject *, int, DSPMode)), 
 		this, 
 		SLOT(dspModeChanged(QObject *, int, DSPMode)));
 
-	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode)), 
-		this, 
-		SLOT(agcModeChanged(QObject *, int, AGCMode)));
+//	CHECKED_CONNECT(
+//		set,
+//		SIGNAL(agcModeChanged(QObject *, int, AGCMode)),
+//		this,
+//		SLOT(agcModeChanged(QObject *, int, AGCMode)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(filterFrequenciesChanged(QObject *, int, qreal, qreal)), 
 		this, 
 		SLOT(filterChanged(QObject *, int, qreal, qreal)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
+		this,
+		SLOT(setMercuryAttenuator(QObject *, HamBand, int)));
 }
 
 void RadioWidget::createBandBtnGroup() {
@@ -227,7 +227,7 @@ void RadioWidget::createBandBtnGroup() {
 	band160mBtn->setRoundness(0);
 	//band160mBtn->setGlass(false);
 	band160mBtn->setFixedSize(btn_widths, btn_height);
-	band160mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band160mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band160mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band160mBtn);
 	CHECKED_CONNECT(band160mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -236,7 +236,7 @@ void RadioWidget::createBandBtnGroup() {
 	band80mBtn->setRoundness(0);
 	//band80mBtn->setGlass(false);
 	band80mBtn->setFixedSize(btn_widths, btn_height);
-	band80mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band80mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band80mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band80mBtn);
 	CHECKED_CONNECT(band80mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -245,7 +245,7 @@ void RadioWidget::createBandBtnGroup() {
 	band60mBtn->setRoundness(0);
 	//band60mBtn->setGlass(false);
 	band60mBtn->setFixedSize(btn_widths, btn_height);
-	band60mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band60mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band60mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band60mBtn);
 	CHECKED_CONNECT(band60mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -254,7 +254,7 @@ void RadioWidget::createBandBtnGroup() {
 	band40mBtn->setRoundness(0);
 	//band40mBtn->setGlass(false);
 	band40mBtn->setFixedSize(btn_widths, btn_height);
-	band40mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band40mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band40mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band40mBtn);
 	CHECKED_CONNECT(band40mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -263,7 +263,7 @@ void RadioWidget::createBandBtnGroup() {
 	band30mBtn->setRoundness(0);
 	//band30mBtn->setGlass(false);
 	band30mBtn->setFixedSize(btn_widths, btn_height);
-	band30mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band30mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band30mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band30mBtn);
 	CHECKED_CONNECT(band30mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -272,7 +272,7 @@ void RadioWidget::createBandBtnGroup() {
 	band20mBtn->setRoundness(0);
 	//band20mBtn->setGlass(false);
 	band20mBtn->setFixedSize(btn_widths, btn_height);
-	band20mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band20mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band20mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band20mBtn);
 	CHECKED_CONNECT(band20mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -281,7 +281,7 @@ void RadioWidget::createBandBtnGroup() {
 	band17mBtn->setRoundness(0);
 	//band17mBtn->setGlass(false);
 	band17mBtn->setFixedSize(btn_widths, btn_height);
-	band17mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band17mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band17mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band17mBtn);
 	CHECKED_CONNECT(band17mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -290,7 +290,7 @@ void RadioWidget::createBandBtnGroup() {
 	band15mBtn->setRoundness(0);
 	//band15mBtn->setGlass(false);
 	band15mBtn->setFixedSize(btn_widths, btn_height);
-	band15mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band15mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band15mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band15mBtn);
 	CHECKED_CONNECT(band15mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -299,7 +299,7 @@ void RadioWidget::createBandBtnGroup() {
 	band12mBtn->setRoundness(0);
 	//band12mBtn->setGlass(false);
 	band12mBtn->setFixedSize(btn_widths, btn_height);
-	band12mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band12mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band12mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band12mBtn);
 	CHECKED_CONNECT(band12mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -308,7 +308,7 @@ void RadioWidget::createBandBtnGroup() {
 	band10mBtn->setRoundness(0);
 	//band10mBtn->setGlass(false);
 	band10mBtn->setFixedSize(btn_widths, btn_height);
-	band10mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band10mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band10mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band10mBtn);
 	CHECKED_CONNECT(band10mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -317,7 +317,7 @@ void RadioWidget::createBandBtnGroup() {
 	band6mBtn->setRoundness(0);
 	//band6mBtn->setGlass(false);
 	band6mBtn->setFixedSize(btn_widths, btn_height);
-	band6mBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	band6mBtn->setStyleSheet(set->getMiniButtonStyle());
 	//band6mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band6mBtn);
 	CHECKED_CONNECT(band6mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -326,7 +326,7 @@ void RadioWidget::createBandBtnGroup() {
 	bandGenBtn->setRoundness(0);
 	//bandGenBtn->setGlass(false);
 	bandGenBtn->setFixedSize(btn_widths, btn_height);
-	bandGenBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	bandGenBtn->setStyleSheet(set->getMiniButtonStyle());
 	//bandGenBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(bandGenBtn);
 	CHECKED_CONNECT(bandGenBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
@@ -336,7 +336,7 @@ void RadioWidget::createBandBtnGroup() {
 	bandxxBtn->setGlass(false);
 	bandxxBtn->setFixedSize(btn_widths, btn_height);
 	bandxxBtn->setHighlight(QColor(90, 90, 90));
-	bandxxBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	bandxxBtn->setStyleSheet(set->getMiniButtonStyle());
 	bandxxBtn->setTextColor(QColor(200, 200, 200));
 	bandxxBtn->setEnabled(false);*/
 	
@@ -375,7 +375,7 @@ void RadioWidget::createBandBtnGroup() {
 	bandGroupBox = new QGroupBox(tr("Band"), this);
 	bandGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	bandGroupBox->setLayout(vbox);
-	bandGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	bandGroupBox->setStyleSheet(set->getWidgetStyle());
 	//bandGroupBox->setMinimumWidth(100);
 	bandGroupBox->setFont(QFont("Arial", 8));
 }
@@ -386,7 +386,7 @@ void RadioWidget::createModeBtnGroup() {
 	lsbBtn->setRoundness(0);
 	//lsbBtn->setGlass(false);
 	lsbBtn->setFixedSize(btn_widths, btn_height);
-	lsbBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	lsbBtn->setStyleSheet(set->getMiniButtonStyle());
 	//lsbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(lsbBtn);
 	CHECKED_CONNECT(lsbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -395,7 +395,7 @@ void RadioWidget::createModeBtnGroup() {
 	usbBtn->setRoundness(0);
 	//usbBtn->setGlass(false);
 	usbBtn->setFixedSize(btn_widths, btn_height);
-	usbBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	usbBtn->setStyleSheet(set->getMiniButtonStyle());
 	//usbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(usbBtn);
 	CHECKED_CONNECT(usbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -404,7 +404,7 @@ void RadioWidget::createModeBtnGroup() {
 	dsbBtn->setRoundness(0);
 	//dsbBtn->setGlass(false);
 	dsbBtn->setFixedSize(btn_widths, btn_height);
-	dsbBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	dsbBtn->setStyleSheet(set->getMiniButtonStyle());
 	//dsbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(dsbBtn);
 	CHECKED_CONNECT(dsbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -413,7 +413,7 @@ void RadioWidget::createModeBtnGroup() {
 	cwlBtn->setRoundness(0);
 	//cwlBtn->setGlass(false);
 	cwlBtn->setFixedSize(btn_widths, btn_height);
-	cwlBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	cwlBtn->setStyleSheet(set->getMiniButtonStyle());
 	//cwlBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(cwlBtn);
 	CHECKED_CONNECT(cwlBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -422,7 +422,7 @@ void RadioWidget::createModeBtnGroup() {
 	cwuBtn->setRoundness(0);
 	//cwuBtn->setGlass(false);
 	cwuBtn->setFixedSize(btn_widths, btn_height);
-	cwuBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	cwuBtn->setStyleSheet(set->getMiniButtonStyle());
 	//cwuBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(cwuBtn);
 	CHECKED_CONNECT(cwuBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -431,7 +431,7 @@ void RadioWidget::createModeBtnGroup() {
 	fmnBtn->setRoundness(0);
 	//fmnBtn->setGlass(false);
 	fmnBtn->setFixedSize(btn_widths, btn_height);
-	fmnBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	fmnBtn->setStyleSheet(set->getMiniButtonStyle());
 	//fmnBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(fmnBtn);
 	CHECKED_CONNECT(fmnBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -440,7 +440,7 @@ void RadioWidget::createModeBtnGroup() {
 	amBtn->setRoundness(0);
 	//amBtn->setGlass(false);
 	amBtn->setFixedSize(btn_widths, btn_height);
-	amBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	amBtn->setStyleSheet(set->getMiniButtonStyle());
 	//amBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(amBtn);
 	CHECKED_CONNECT(amBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -449,7 +449,7 @@ void RadioWidget::createModeBtnGroup() {
 	diguBtn->setRoundness(0);
 	//diguBtn->setGlass(false);
 	diguBtn->setFixedSize(btn_widths, btn_height);
-	diguBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	diguBtn->setStyleSheet(set->getMiniButtonStyle());
 	//diguBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(diguBtn);
 	CHECKED_CONNECT(diguBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -458,7 +458,7 @@ void RadioWidget::createModeBtnGroup() {
 	diglBtn->setRoundness(0);
 	//diglBtn->setGlass(false);
 	diglBtn->setFixedSize(btn_widths, btn_height);
-	diglBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	diglBtn->setStyleSheet(set->getMiniButtonStyle());
 	//diglBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(diglBtn);
 	CHECKED_CONNECT(diglBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -467,7 +467,7 @@ void RadioWidget::createModeBtnGroup() {
 	specBtn->setRoundness(0);
 	//specBtn->setGlass(false);
 	specBtn->setFixedSize(btn_widths, btn_height);
-	specBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	specBtn->setStyleSheet(set->getMiniButtonStyle());
 	//specBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(specBtn);
 	CHECKED_CONNECT(specBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -476,7 +476,7 @@ void RadioWidget::createModeBtnGroup() {
 	samBtn->setRoundness(0);
 	//samBtn->setGlass(false);
 	samBtn->setFixedSize(btn_widths, btn_height);
-	samBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	samBtn->setStyleSheet(set->getMiniButtonStyle());
 	//samBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(samBtn);
 	CHECKED_CONNECT(samBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -485,7 +485,7 @@ void RadioWidget::createModeBtnGroup() {
 	drmBtn->setRoundness(0);
 	//drmBtn->setGlass(false);
 	drmBtn->setFixedSize(btn_widths, btn_height);
-	drmBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	drmBtn->setStyleSheet(set->getMiniButtonStyle());
 	//drmBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(drmBtn);
 	CHECKED_CONNECT(drmBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
@@ -495,7 +495,7 @@ void RadioWidget::createModeBtnGroup() {
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
-	m_dspMode = m_settings->getCurrentDSPMode();
+	m_dspMode = set->getCurrentDSPMode();
 	dspModeBtnList.at(m_dspMode)->setBtnState(AeroButton::ON);*/
 
 	QGridLayout *layout = new QGridLayout();
@@ -527,125 +527,9 @@ void RadioWidget::createModeBtnGroup() {
 	modeGroupBox = new QGroupBox(tr("Mode"), this);
 	modeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	modeGroupBox->setLayout(vbox);
-	modeGroupBox->setStyleSheet(m_settings->getWidgetStyle());
+	modeGroupBox->setStyleSheet(set->getWidgetStyle());
 	//modeGroupBox->setMinimumWidth(100);
 	modeGroupBox->setFont(QFont("Arial", 8));
-}
-
-//void RadioWidget::createAgcBtnGroup() {
-//
-//	AgcBtn = new AeroButton(getAGCModeString(m_agcMode));
-//	AgcBtn->setRoundness(0);
-//	//AgcBtn->setGlass(false);
-//	AgcBtn->setFixedSize(90, btn_height);
-//	AgcBtn->setStyleSheet(m_settings->getMiniButtonStyle());
-//	//AgcBtn->setTextColor(QColor(200, 200, 200));
-//	AgcBtn->setEnabled(false);
-//	
-//	agc_left.addFile(QString::fromUtf8(":/img/left_arrow.png"), QSize(), QIcon::Normal, QIcon::Off);
-//	agc_right.addFile(QString::fromUtf8(":/img/right_arrow.png"), QSize(), QIcon::Normal, QIcon::Off);
-//
-//	AgcLeftBtn = new AeroButton(agc_left, "", this);
-//	AgcLeftBtn->setRoundness(0);
-//	AgcLeftBtn->setGlass(false);
-//	AgcLeftBtn->setFixedSize(17, btn_height);
-//	AgcLeftBtn->setStyleSheet(m_settings->getMiniButtonStyle());
-//	CHECKED_CONNECT(AgcLeftBtn, SIGNAL(clicked()), this, SLOT(agcDownModeByBtn()));
-//
-//	AgcRightBtn = new AeroButton(agc_right, "", this);
-//	AgcRightBtn->setRoundness(0);
-//	AgcRightBtn->setGlass(false);
-//	AgcRightBtn->setFixedSize(15, btn_height);
-//	AgcRightBtn->setStyleSheet(m_settings->getMiniButtonStyle());
-//	CHECKED_CONNECT(AgcRightBtn, SIGNAL(clicked()), this, SLOT(agcUpModeByBtn()));
-//
-//	QGridLayout *layout = new QGridLayout();
-//	layout->setVerticalSpacing(0);
-//	layout->setHorizontalSpacing(0);
-//	layout->setContentsMargins(0, 0, 0, 0);
-//
-//	/*QHBoxLayout *layout = new QHBoxLayout;
-//	layout->setSpacing(0);
-//	layout->setMargin(0);
-//	layout->addSpacing(50);*/
-//	layout->addWidget(AgcLeftBtn, 0, 0);
-//	layout->addWidget(AgcBtn, 0, 1);
-//	layout->addWidget(AgcRightBtn, 0, 2);
-//	//layout->addStretch();
-//
-//	QVBoxLayout *vbox = new QVBoxLayout;
-//	vbox->setSpacing(1);
-//	vbox->addLayout(layout);
-//
-//	agcGroupBox = new QGroupBox(tr("AGC"), this);
-//	agcGroupBox->setLayout(vbox);
-//	agcGroupBox->setStyleSheet(m_settings->getWidgetStyle());
-//	agcGroupBox->setMinimumWidth(175);
-//	agcGroupBox->setFont(QFont("Arial", 8));
-//}
-
-void RadioWidget::createAgcBtnGroup() {
-
-	agcOFF = new AeroButton("Off", this);
-	agcOFF->setRoundness(0);
-	agcOFF->setFixedSize(btn_widths, btn_height);
-	agcOFF->setStyleSheet(m_settings->getMiniButtonStyle());
-	agcModeBtnList.append(agcOFF);
-	CHECKED_CONNECT(agcOFF, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
-
-	agcLONG = new AeroButton("Long", this);
-	agcLONG->setRoundness(0);
-	agcLONG->setFixedSize(btn_widths, btn_height);
-	agcLONG->setStyleSheet(m_settings->getMiniButtonStyle());
-	agcModeBtnList.append(agcLONG);
-	CHECKED_CONNECT(agcLONG, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
-
-	agcSLOW = new AeroButton("Slow", this);
-	agcSLOW->setRoundness(0);
-	agcSLOW->setFixedSize(btn_widths, btn_height);
-	agcSLOW->setStyleSheet(m_settings->getMiniButtonStyle());
-	agcModeBtnList.append(agcSLOW);
-	CHECKED_CONNECT(agcSLOW, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
-
-	agcMED = new AeroButton("Med", this);
-	agcMED->setRoundness(0);
-	agcMED->setFixedSize(btn_widths, btn_height);
-	agcMED->setStyleSheet(m_settings->getMiniButtonStyle());
-	agcModeBtnList.append(agcMED);
-	CHECKED_CONNECT(agcMED, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
-
-	agcFAST = new AeroButton("Fast", this);
-	agcFAST->setRoundness(0);
-	agcFAST->setFixedSize(btn_widths, btn_height);
-	agcFAST->setStyleSheet(m_settings->getMiniButtonStyle());
-	agcModeBtnList.append(agcFAST);
-	CHECKED_CONNECT(agcFAST, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
-	
-	QGridLayout *layout = new QGridLayout();
-	layout->setVerticalSpacing(1);
-	layout->setHorizontalSpacing(1);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(agcOFF,  0, 0);
-	layout->addWidget(agcLONG, 0, 1);
-	layout->addWidget(agcSLOW, 0, 2);
-	layout->addWidget(agcMED,  0, 3);
-	layout->addWidget(agcFAST, 0, 4);
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(4);
-	hbox1->addStretch();
-	hbox1->addLayout(layout);
-
-	QVBoxLayout *vbox = new QVBoxLayout;
-	vbox->setSpacing(1);
-	vbox->addLayout(hbox1);
-
-	agcGroupBox = new QGroupBox(tr("AGC"), this);
-	agcGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
-	agcGroupBox->setLayout(vbox);
-	agcGroupBox->setStyleSheet(m_settings->getWidgetStyle());
-	//agcGroupBox->setMinimumWidth(175);
-	agcGroupBox->setFont(QFont("Arial", 8));
 }
 
 void RadioWidget::createFilterBtnGroupA() {
@@ -655,7 +539,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter1kBtnA->setRoundness(0);
 	//filter1kBtnA->setGlass(false);
 	filter1kBtnA->setFixedSize(btn_widths, btn_height);
-	filter1kBtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter1kBtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter1kBtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter1kBtnA);
 	CHECKED_CONNECT(filter1kBtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -665,7 +549,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter1k8BtnA->setRoundness(0);
 	//filter1k8BtnA->setGlass(false);
 	filter1k8BtnA->setFixedSize(btn_widths, btn_height);
-	filter1k8BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter1k8BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter1k8BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter1k8BtnA);
 	CHECKED_CONNECT(filter1k8BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -675,7 +559,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k1BtnA->setRoundness(0);
 	//filter2k1BtnA->setGlass(false);
 	filter2k1BtnA->setFixedSize(btn_widths, btn_height);
-	filter2k1BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k1BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k1BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k1BtnA);
 	CHECKED_CONNECT(filter2k1BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -685,7 +569,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k4BtnA->setRoundness(0);
 	//filter2k4BtnA->setGlass(false);
 	filter2k4BtnA->setFixedSize(btn_widths, btn_height);
-	filter2k4BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k4BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k4BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k4BtnA);
 	CHECKED_CONNECT(filter2k4BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -695,7 +579,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k7BtnA->setRoundness(0);
 	//filter2k7BtnA->setGlass(false);
 	filter2k7BtnA->setFixedSize(btn_widths, btn_height);
-	filter2k7BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k7BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k7BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k7BtnA);
 	CHECKED_CONNECT(filter2k7BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -705,7 +589,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k9BtnA->setRoundness(0);
 	//filter2k9BtnA->setGlass(false);
 	filter2k9BtnA->setFixedSize(btn_widths, btn_height);
-	filter2k9BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k9BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k9BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k9BtnA);
 	CHECKED_CONNECT(filter2k9BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -715,7 +599,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter3k3BtnA->setRoundness(0);
 	//filter3k3BtnA->setGlass(false);
 	filter3k3BtnA->setFixedSize(btn_widths, btn_height);
-	filter3k3BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter3k3BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter3k3BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter3k3BtnA);
 	CHECKED_CONNECT(filter3k3BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -725,7 +609,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter3k8BtnA->setRoundness(0);
 	//filter3k8BtnA->setGlass(false);
 	filter3k8BtnA->setFixedSize(btn_widths, btn_height);
-	filter3k8BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter3k8BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter3k8BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter3k8BtnA);
 	CHECKED_CONNECT(filter3k8BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -735,7 +619,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter4k4BtnA->setRoundness(0);
 	//filter4k4BtnA->setGlass(false);
 	filter4k4BtnA->setFixedSize(btn_widths, btn_height);
-	filter4k4BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter4k4BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter4k4BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter4k4BtnA);
 	CHECKED_CONNECT(filter4k4BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -745,7 +629,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter5kBtnA->setRoundness(0);
 	//filter5kBtnA->setGlass(false);
 	filter5kBtnA->setFixedSize(btn_widths, btn_height);
-	filter5kBtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter5kBtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filter5kBtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter5kBtnA);
 	CHECKED_CONNECT(filter5kBtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -755,7 +639,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterVar1BtnA->setRoundness(0);
 	//filterVar1BtnA->setGlass(false);
 	filterVar1BtnA->setFixedSize(btn_widths, btn_height);
-	filterVar1BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar1BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar1BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filterVar1BtnA);
 	CHECKED_CONNECT(filterVar1BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -765,7 +649,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterVar2BtnA->setRoundness(0);
 	//filterVar2BtnA->setGlass(false);
 	filterVar2BtnA->setFixedSize(btn_widths, btn_height);
-	filterVar2BtnA->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar2BtnA->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar2BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filterVar2BtnA);
 	CHECKED_CONNECT(filterVar2BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -775,7 +659,7 @@ void RadioWidget::createFilterBtnGroupA() {
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
-	//filterBtnListA.at(m_settings->getCurrentDSPMode())->setBtnState(AeroButton::ON);
+	//filterBtnListA.at(set->getCurrentDSPMode())->setBtnState(AeroButton::ON);
 
 	QGridLayout *layout = new QGridLayout;
 	layout->setVerticalSpacing(1);
@@ -806,7 +690,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterGroupABox = new QGroupBox(tr("Filter"), this);
 	filterGroupABox->setMinimumWidth(m_minimumGroupBoxWidth);
 	filterGroupABox->setLayout(vbox);
-	filterGroupABox->setStyleSheet(m_settings->getWidgetStyle());
+	filterGroupABox->setStyleSheet(set->getWidgetStyle());
 	filterGroupABox->setFont(QFont("Arial", 8));
 }
 
@@ -816,7 +700,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter16kBtnB->setRoundness(0);
 	//filter16kBtnB->setGlass(false);
 	filter16kBtnB->setFixedSize(btn_widths, btn_height);
-	filter16kBtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter16kBtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter16kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter16kBtnB);
 	CHECKED_CONNECT(filter16kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -825,7 +709,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter12kBtnB->setRoundness(0);
 	//filter12kBtnB->setGlass(false);
 	filter12kBtnB->setFixedSize(btn_widths, btn_height);
-	filter12kBtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter12kBtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter12kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter12kBtnB);
 	CHECKED_CONNECT(filter12kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -834,7 +718,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter10kBtnB->setRoundness(0);
 	//filter10kBtnB->setGlass(false);
 	filter10kBtnB->setFixedSize(btn_widths, btn_height);
-	filter10kBtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter10kBtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter10kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter10kBtnB);
 	CHECKED_CONNECT(filter10kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -843,7 +727,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter8kBtnB->setRoundness(0);
 	//filter8kBtnB->setGlass(false);
 	filter8kBtnB->setFixedSize(btn_widths, btn_height);
-	filter8kBtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter8kBtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter8kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter8kBtnB);
 	CHECKED_CONNECT(filter8kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -852,7 +736,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter6k6BtnB->setRoundness(0);
 	//filter6k6BtnB->setGlass(false);
 	filter6k6BtnB->setFixedSize(btn_widths, btn_height);
-	filter6k6BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter6k6BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter6k6BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter6k6BtnB);
 	CHECKED_CONNECT(filter6k6BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -861,7 +745,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter5k2BtnB->setRoundness(0);
 	//filter5k2BtnB->setGlass(false);
 	filter5k2BtnB->setFixedSize(btn_widths, btn_height);
-	filter5k2BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter5k2BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter5k2BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter5k2BtnB);
 	CHECKED_CONNECT(filter5k2BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -870,7 +754,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter4kBtnB->setRoundness(0);
 	//filter4kBtnB->setGlass(false);
 	filter4kBtnB->setFixedSize(btn_widths, btn_height);
-	filter4kBtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter4kBtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter4kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter4kBtnB);
 	CHECKED_CONNECT(filter4kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -879,7 +763,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter3k1BtnB->setRoundness(0);
 	//filter3k1BtnB->setGlass(false);
 	filter3k1BtnB->setFixedSize(btn_widths, btn_height);
-	filter3k1BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter3k1BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter3k1BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter3k1BtnB);
 	CHECKED_CONNECT(filter3k1BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -888,7 +772,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter2k9BtnB->setRoundness(0);
 	//filter2k9BtnB->setGlass(false);
 	filter2k9BtnB->setFixedSize(btn_widths, btn_height);
-	filter2k9BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k9BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k9BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter2k9BtnB);
 	CHECKED_CONNECT(filter2k9BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -897,7 +781,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter2k4BtnB->setRoundness(0);
 	//filter2k4BtnB->setGlass(false);
 	filter2k4BtnB->setFixedSize(btn_widths, btn_height);
-	filter2k4BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter2k4BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filter2k4BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter2k4BtnB);
 	CHECKED_CONNECT(filter2k4BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -906,7 +790,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filterVar1BtnB->setRoundness(0);
 	//filterVar1BtnB->setGlass(false);
 	filterVar1BtnB->setFixedSize(btn_widths, btn_height);
-	filterVar1BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar1BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar1BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filterVar1BtnB);
 	CHECKED_CONNECT(filterVar1BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -915,7 +799,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filterVar2BtnB->setRoundness(0);
 	//filterVar2BtnB->setGlass(false);
 	filterVar2BtnB->setFixedSize(btn_widths, btn_height);
-	filterVar2BtnB->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar2BtnB->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar2BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filterVar2BtnB);
 	CHECKED_CONNECT(filterVar2BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -925,7 +809,7 @@ void RadioWidget::createFilterBtnGroupB() {
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
-	//filterBtnListA.at(m_settings->getCurrentDSPMode())->setBtnState(AeroButton::ON);
+	//filterBtnListA.at(set->getCurrentDSPMode())->setBtnState(AeroButton::ON);
 
 	QGridLayout *layout = new QGridLayout;
 	layout->setVerticalSpacing(1);
@@ -956,7 +840,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filterGroupBBox = new QGroupBox(tr("Filter"), this);
 	filterGroupBBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	filterGroupBBox->setLayout(vbox);
-	filterGroupBBox->setStyleSheet(m_settings->getWidgetStyle());
+	filterGroupBBox->setStyleSheet(set->getWidgetStyle());
 	filterGroupBBox->setFont(QFont("Arial", 8));
 }
 
@@ -966,7 +850,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter1kBtnC->setRoundness(0);
 	//filter1kBtnC->setGlass(false);
 	filter1kBtnC->setFixedSize(btn_widths, btn_height);
-	filter1kBtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter1kBtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter1kBtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter1kBtnC);
 	CHECKED_CONNECT(filter1kBtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -975,7 +859,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter800BtnC->setRoundness(0);
 	//filter800BtnC->setGlass(false);
 	filter800BtnC->setFixedSize(btn_widths, btn_height);
-	filter800BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter800BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter800BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter800BtnC);
 	CHECKED_CONNECT(filter800BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -984,7 +868,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter750BtnC->setRoundness(0);
 	//filter750BtnC->setGlass(false);
 	filter750BtnC->setFixedSize(btn_widths, btn_height);
-	filter750BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter750BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter750BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter750BtnC);
 	CHECKED_CONNECT(filter750BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -993,7 +877,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter600BtnC->setRoundness(0);
 	//filter600BtnC->setGlass(false);
 	filter600BtnC->setFixedSize(btn_widths, btn_height);
-	filter600BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter600BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter600BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter600BtnC);
 	CHECKED_CONNECT(filter600BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1002,7 +886,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter500BtnC->setRoundness(0);
 	//filter500BtnC->setGlass(false);
 	filter500BtnC->setFixedSize(btn_widths, btn_height);
-	filter500BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter500BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter500BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter500BtnC);
 	CHECKED_CONNECT(filter500BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1011,7 +895,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter400BtnC->setRoundness(0);
 	//filter400BtnC->setGlass(false);
 	filter400BtnC->setFixedSize(btn_widths, btn_height);
-	filter400BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter400BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter400BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter400BtnC);
 	CHECKED_CONNECT(filter400BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1020,7 +904,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter250BtnC->setRoundness(0);
 	//filter250BtnC->setGlass(false);
 	filter250BtnC->setFixedSize(btn_widths, btn_height);
-	filter250BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter250BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter250BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter250BtnC);
 	CHECKED_CONNECT(filter250BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1029,7 +913,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter100BtnC->setRoundness(0);
 	//filter100BtnC->setGlass(false);
 	filter100BtnC->setFixedSize(btn_widths, btn_height);
-	filter100BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter100BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter100BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter100BtnC);
 	CHECKED_CONNECT(filter100BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1038,7 +922,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter50BtnC->setRoundness(0);
 	//filter50BtnC->setGlass(false);
 	filter50BtnC->setFixedSize(btn_widths, btn_height);
-	filter50BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter50BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter50BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter50BtnC);
 	CHECKED_CONNECT(filter50BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1047,7 +931,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter25BtnC->setRoundness(0);
 	//filter25BtnC->setGlass(false);
 	filter25BtnC->setFixedSize(btn_widths, btn_height);
-	filter25BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filter25BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filter25BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter25BtnC);
 	CHECKED_CONNECT(filter25BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1056,7 +940,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filterVar1BtnC->setRoundness(0);
 	//filterVar1BtnC->setGlass(false);
 	filterVar1BtnC->setFixedSize(btn_widths, btn_height);
-	filterVar1BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar1BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar1BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filterVar1BtnC);
 	CHECKED_CONNECT(filterVar1BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1065,7 +949,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filterVar2BtnC->setRoundness(0);
 	//filterVar2BtnC->setGlass(false);
 	filterVar2BtnC->setFixedSize(btn_widths, btn_height);
-	filterVar2BtnC->setStyleSheet(m_settings->getMiniButtonStyle());
+	filterVar2BtnC->setStyleSheet(set->getMiniButtonStyle());
 	//filterVar2BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filterVar2BtnC);
 	CHECKED_CONNECT(filterVar2BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
@@ -1075,7 +959,7 @@ void RadioWidget::createFilterBtnGroupC() {
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
-	//filterBtnListC.at(m_settings)->getCurrentDSPMode())->setBtnState(AeroButton::ON);
+	//filterBtnListC.at(set)->getCurrentDSPMode())->setBtnState(AeroButton::ON);
 
 	QGridLayout *layout = new QGridLayout();
 	layout->setVerticalSpacing(1);
@@ -1106,58 +990,58 @@ void RadioWidget::createFilterBtnGroupC() {
 	filterGroupCBox = new QGroupBox(tr("Filter"), this);
 	filterGroupCBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	filterGroupCBox->setLayout(vbox);
-	filterGroupCBox->setStyleSheet(m_settings->getWidgetStyle());
+	filterGroupCBox->setStyleSheet(set->getWidgetStyle());
 	filterGroupCBox->setFont(QFont("Arial", 8));
 }
 
 QGroupBox *RadioWidget::mercuryBtnGroup() {
 
-	preampBtn = new AeroButton("Attn.", this);
-	preampBtn->setRoundness(0);
-	//preampBtn->setGlass(false);
-	preampBtn->setFixedSize (50, btn_height);
-	preampBtn->setStyleSheet(m_settings->getMiniButtonStyle());
-	//preampBtn->setTextColor(QColor(200, 200, 200));
-	connect (preampBtn, SIGNAL (released()), this, SLOT (preampChanged()));
+	attenuatorBtn = new AeroButton("Attn.", this);
+	attenuatorBtn->setRoundness(0);
+	attenuatorBtn->setFixedSize (50, btn_height);
+	attenuatorBtn->setStyleSheet(set->getMiniButtonStyle());
+	connect(attenuatorBtn, SIGNAL(released()), this, SLOT(attenuatorChanged()));
 
 	ditherBtn = new AeroButton("Dither", this);
 	ditherBtn->setRoundness(0);
 	//ditherBtn->setGlass(false);
 	ditherBtn->setFixedSize (50, btn_height);
-	ditherBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	ditherBtn->setStyleSheet(set->getMiniButtonStyle());
 	//ditherBtn->setTextColor(QColor(200, 200, 200));
-	connect (ditherBtn, SIGNAL (released()), this, SLOT (ditherChanged()));
+	connect(ditherBtn, SIGNAL(released()), this, SLOT(ditherChanged()));
 
 	randomBtn = new AeroButton("Rand", this);
 	randomBtn->setRoundness(0);
 	//randomBtn->setGlass(false);
 	randomBtn->setFixedSize(50, btn_height);
-	randomBtn->setStyleSheet(m_settings->getMiniButtonStyle());
+	randomBtn->setStyleSheet(set->getMiniButtonStyle());
 	//randomBtn->setTextColor(QColor(200, 200, 200));
 	CHECKED_CONNECT(randomBtn, SIGNAL(released()), this, SLOT(randomChanged()));
 	
-	if(m_settings->getMercuryPreamp()) {
+	HamBand band = m_receiverDataList.at(0).hamBand;
 
-		preampBtn->setBtnState(AeroButton::ON);
-		preampBtn->setText("Att 0dB");
+	if (m_receiverDataList.at(0).mercuryAttenuators.at(band)) {
+
+		attenuatorBtn->setBtnState(AeroButton::OFF);
+		attenuatorBtn->setText("Att 0dB");
 	}
 	else {
 
-		preampBtn->setBtnState(AeroButton::OFF);
-		preampBtn->setText("Att -20dB");
+		attenuatorBtn->setBtnState(AeroButton::ON);
+		attenuatorBtn->setText("Att -20dB");
 	}
 
-	if(m_settings->getMercuryDither())
+	if(set->getMercuryDither())
 		ditherBtn->setBtnState(AeroButton::ON);
 
-	if(m_settings->getMercuryRandom())
+	if(set->getMercuryRandom())
 		randomBtn->setBtnState(AeroButton::ON);
 		
 	QGridLayout *layout = new QGridLayout();
 	layout->setVerticalSpacing(1);
 	layout->setHorizontalSpacing(1);
 	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(preampBtn, 0, 0);
+	layout->addWidget(attenuatorBtn, 0, 0);
 	layout->addWidget(ditherBtn, 0, 1);
 	layout->addWidget(randomBtn, 0, 2);
 	
@@ -1173,81 +1057,7 @@ QGroupBox *RadioWidget::mercuryBtnGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Mercury"), this);
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(m_settings->getWidgetStyle());
-	//groupBox->setMinimumWidth(175);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-QGroupBox *RadioWidget::sampleRateExclusiveGroup() {
-
-	samplerate48Btn = new AeroButton("48 kHz", this);
-	samplerate48Btn->setRoundness(0);
-	//samplerate48Btn->setGlass(false);
-	samplerate48Btn->setFixedSize (50, btn_height);
-	samplerate48Btn->setStyleSheet(m_settings->getMiniButtonStyle());
-	//samplerate48Btn->setTextColor(QColor(200, 200, 200));
-	CHECKED_CONNECT(samplerate48Btn, SIGNAL(released()), this, SLOT(sampleRateChangedTo48()));
-	
-	samplerate96Btn = new AeroButton("96 kHz", this);
-	samplerate96Btn->setRoundness(0);
-	//samplerate96Btn->setGlass(false);
-	samplerate96Btn->setFixedSize (50, btn_height);
-	samplerate96Btn->setStyleSheet(m_settings->getMiniButtonStyle());
-	//samplerate96Btn->setTextColor(QColor(200, 200, 200));
-	CHECKED_CONNECT(samplerate96Btn, SIGNAL(released()), this, SLOT(sampleRateChangedTo96()));
-
-	samplerate192Btn = new AeroButton("192 kHz", this);
-	samplerate192Btn->setRoundness(0);
-	//samplerate192Btn->setGlass(false);
-	samplerate192Btn->setFixedSize (50, btn_height);
-	samplerate192Btn->setStyleSheet(m_settings->getMiniButtonStyle());
-	//samplerate192Btn->setTextColor(QColor(200, 200, 200));
-	CHECKED_CONNECT(samplerate192Btn, SIGNAL(released()), this, SLOT(sampleRateChangedTo192()));
-	
-	switch(m_settings->getSampleRate()) {
-
-		case 48000:
-			samplerate48Btn->setBtnState(AeroButton::ON);
-			samplerate96Btn->setBtnState(AeroButton::OFF);
-			samplerate192Btn->setBtnState(AeroButton::OFF);
-			break;
-			
-		case 96000:
-			samplerate48Btn->setBtnState(AeroButton::OFF);
-			samplerate96Btn->setBtnState(AeroButton::ON);
-			samplerate192Btn->setBtnState(AeroButton::OFF);
-			break;
-			
-		case 192000:
-			samplerate48Btn->setBtnState(AeroButton::OFF);
-			samplerate96Btn->setBtnState(AeroButton::OFF);
-			samplerate192Btn->setBtnState(AeroButton::ON);
-			break;
-	}
-	
-	QGridLayout *layout = new QGridLayout();
-	layout->setVerticalSpacing(1);
-	layout->setHorizontalSpacing(1);
-	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(samplerate48Btn, 0, 0);
-	layout->addWidget(samplerate96Btn, 0, 1);
-	layout->addWidget(samplerate192Btn, 0, 2);
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(4);
-	hbox1->addStretch();
-	hbox1->addLayout(layout);
-
-	QVBoxLayout *vbox = new QVBoxLayout;
-	vbox->setSpacing(1);
-	vbox->addLayout(hbox1);
-	
-	QGroupBox *groupBox = new QGroupBox(tr("Sample Rate"), this);
-	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
-	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(m_settings->getWidgetStyle());
+	groupBox->setStyleSheet(set->getWidgetStyle());
 	//groupBox->setMinimumWidth(175);
 	groupBox->setFont(QFont("Arial", 8));
 
@@ -1271,16 +1081,8 @@ void RadioWidget::frequencyChanged(QObject* sender, bool value, int rx, long fre
 	if (m_currentRx != rx) return;
 	m_frequency = frequency;
 
-	foreach(AeroButton *btn, bandBtnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
-	}
-
-	HamBand band = getBandFromFrequency(m_settings->getBandFrequencyList(), frequency);
+	HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
 	m_lastFrequencyList[(int) band] = m_frequency;
-	bandBtnList.at((int) band)->setBtnState(AeroButton::ON);
-	bandBtnList.at((int) band)->update();
 }
 
 void RadioWidget::bandChangedByBtn() {
@@ -1297,50 +1099,52 @@ void RadioWidget::bandChangedByBtn() {
 	button->setBtnState(AeroButton::ON);
 	button->update();
 
-	m_settings->setHamBand(this, m_currentRx, (HamBand) btn);
+	set->setHamBand(this, m_currentRx, true, (HamBand) btn);
 
 	QString str = button->text();
 	if (str == "160 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(0));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(0));
 	else
 	if (str == "80 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(1));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(1));
 	else
 	if (str == "60 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(2));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(2));
 	else
 	if (str == "40 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(3));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(3));
 	else
 	if (str == "30 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(4));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(4));
 	else
 	if (str == "20 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(5));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(5));
 	else
 	if (str == "17 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(6));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(6));
 	else
 	if (str == "15 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(7));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(7));
 	else
 	if (str == "12 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(8));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(8));
 	else
 	if (str == "10 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(9));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(9));
 	else
 	if (str == "6 m")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(10));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(10));
 	else
 	if (str == "Gen")
-		m_settings->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(11));
+		set->setFrequency(this, true, m_currentRx, m_lastFrequencyList.at(11));
 
 }
 
-void RadioWidget::bandChanged(QObject *sender, int rx, HamBand band) {
+void RadioWidget::bandChanged(QObject *sender, int rx, bool byButton, HamBand band) {
 
-	Q_UNUSED(sender)
+	Q_UNUSED (byButton)
+
+	if (sender == this) return;
 
 	if (m_currentRx != rx) return;
 	m_hamBand = band;
@@ -1351,6 +1155,7 @@ void RadioWidget::bandChanged(QObject *sender, int rx, HamBand band) {
 		btn->update();
 	}
 
+	//m_lastFrequencyList[(int) band] = m_frequency;
 	bandBtnList.at(band)->setBtnState(AeroButton::ON);
 	bandBtnList.at(band)->update();
 }
@@ -1366,8 +1171,8 @@ void RadioWidget::dspModeChangedByBtn() {
 		btn->update();
 	}
 
-	m_settings->setDSPMode(this, m_currentRx, (DSPMode) btn);
-	m_dspMode = (DSPMode) btn;
+	set->setDSPMode(this, m_currentRx, (DSPMode) btn);
+	m_dspModeList[m_hamBand] = (DSPMode) btn;
 	filterChanged(this, m_currentRx, m_filterLo, m_filterHi);
 	filterGroupChanged((DSPMode) btn);
 
@@ -1380,7 +1185,7 @@ void RadioWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
 	Q_UNUSED(sender)
 	
 	if (m_currentRx != rx) return;
-	m_dspMode = mode;
+	m_dspModeList[m_hamBand] = mode;
 
 	foreach(AeroButton *btn, dspModeBtnList) {
 
@@ -1425,7 +1230,7 @@ void RadioWidget::filterChangedByBtn()	 {
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
 	
 	QList<AeroButton *> btnList;
-	int filterList;
+	int filterList = 0;
 
 	if (filterBtnListA.contains(button)) {
 		
@@ -1453,22 +1258,27 @@ void RadioWidget::filterChangedByBtn()	 {
 	button->update();
 
 	QString str = button->text();
+
+	DSPMode mode = m_dspModeList.at(m_hamBand);
 	switch (filterList) {
 
 		case 0: // filterBtnList A
 
 			if (str == "1k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -1150.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 1150.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1476,33 +1286,38 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "1k8") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -1950.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 1950.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "2k1") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -2250.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode)  USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 2250.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1510,16 +1325,19 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "2k4") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -2550.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 2550.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1527,16 +1345,19 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "2k7") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -2850.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 2850.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1544,16 +1365,19 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "2k9") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -3050.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 3050.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1561,16 +1385,19 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "3k3") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -3450.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 3450.0f;
+						break;
+
+					default:
 						break;
 
 				}
@@ -1578,52 +1405,58 @@ void RadioWidget::filterChangedByBtn()	 {
 			else
 			if (str == "3k8") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -3950.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 3950.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "4k4") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -4550.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 4550.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "5k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 0:
+					case (DSPMode) LSB:
 						m_filterLo = -5150.0f;
 						m_filterHi = -150.0f;
 						break;
 
-					case 1:
+					case (DSPMode) USB:
 						m_filterLo = 150.0f;
 						m_filterHi = 5150.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			break;
@@ -1632,11 +1465,11 @@ void RadioWidget::filterChangedByBtn()	 {
 
 			if (str == "2k4") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -1200.0f;
 						m_filterHi =  1200.0f;
 						break;
@@ -1646,20 +1479,18 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterHi =  2000.0f;
 						break;
 
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "2k9") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -1450.0f;
 						m_filterHi =  1450.0f;
 						break;
@@ -1673,16 +1504,19 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "3k1") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -1550.0f;
 						m_filterHi =  1550.0f;
 						break;
@@ -1696,16 +1530,19 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "4k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1719,16 +1556,19 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "5k2") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -2600.0f;
 						m_filterHi =  2600.0f;
 						break;
@@ -1742,21 +1582,24 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "6k6") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -3300.0f;
 						m_filterHi =  3300.0f;
 						break;
 
-					case 5:
+					case (DSPMode) FMN:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1765,21 +1608,24 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "8k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;
 
-					case 5:
+					case (DSPMode) FMN:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1788,21 +1634,24 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "10k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -5000.0f;
 						m_filterHi =  5000.0f;
 						break;
 
-					case 5:
+					case (DSPMode) FMN:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1811,21 +1660,24 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "12k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -6000.0f;
 						m_filterHi =  6000.0f;
 						break;
 
-					case 5:
+					case (DSPMode) FMN:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1834,21 +1686,24 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "16k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 2:
-					case 6:
-					case 10:
+					case (DSPMode) DSB:
+					case (DSPMode) AM:
+					case (DSPMode) SAM:
 						m_filterLo = -8000.0f;
 						m_filterHi =  8000.0f;
 						break;
 
-					case 5:
+					case (DSPMode) FMN:
 						m_filterLo = -2000.0f;
 						m_filterHi =  2000.0f;
 						break;
@@ -1857,6 +1712,9 @@ void RadioWidget::filterChangedByBtn()	 {
 						m_filterLo = -4000.0f;
 						m_filterHi =  4000.0f;
 						break;*/
+
+					default:
+						break;
 				}
 			}
 			break;
@@ -1865,169 +1723,197 @@ void RadioWidget::filterChangedByBtn()	 {
 
 			if (str == "25") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -125.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 125.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "50") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -150.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 150.0f;
 						break;
 
+					default:
+						break;
 				}
 			}
 			else
 			if (str == "100") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -200.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 200.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "250") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -350.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 350.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "400") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -500.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 500.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "500") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -600.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 600.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "600") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -700.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 700.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "750") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -850.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 850.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "800") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -900.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 900.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			else
 			if (str == "1k") {
 
-				switch (m_dspMode) {
+				switch (mode) {
 
-					case 3:
+					case (DSPMode) CWL:
 						m_filterLo = -1100.0f;
 						m_filterHi = -100.0f;
 						break;
 
-					case 4:
+					case (DSPMode) CWU:
 						m_filterLo = 100.0f;
 						m_filterHi = 1100.0f;
+						break;
+
+					default:
 						break;
 				}
 			}
 			break;
 	}
 
-	m_settings->setRXFilter(this, m_currentRx, m_filterLo, m_filterHi);	
+	set->setRXFilter(this, m_currentRx, m_filterLo, m_filterHi);	
 }
 
 void RadioWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) {
@@ -2038,7 +1924,8 @@ void RadioWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) 
 	m_filterLo = low;
 	m_filterHi = high;
 
-	if (m_dspMode == 0 || m_dspMode == 1 || m_dspMode == 7 || m_dspMode == 9) {
+	DSPMode mode = m_dspModeList.at(m_hamBand);
+	if (mode == (DSPMode ) LSB || mode == (DSPMode ) USB || mode == (DSPMode ) DIGU || mode == (DSPMode ) DIGL) {
 
 		foreach(AeroButton *btn, filterBtnListA) {
 
@@ -2096,7 +1983,7 @@ void RadioWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) 
 			filter1kBtnA->update();
 		}
 	}
-	else if (m_dspMode == 2 || m_dspMode == 5 || m_dspMode == 6 || m_dspMode == 10)	{
+	else if (mode == (DSPMode ) DSB || mode == (DSPMode ) FMN || mode == (DSPMode ) AM || mode == (DSPMode ) SAM)	{
 
 		// filterGroupBBox
 		foreach(AeroButton *btn, filterBtnListB) {
@@ -2155,7 +2042,7 @@ void RadioWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) 
 			filter2k4BtnB->update();
 		}
 	}
-	else if (m_dspMode == 3 || m_dspMode == 4) {
+	else if (mode == (DSPMode ) CWL || mode == (DSPMode ) CWU) {
 
 		// filterGroupCBox
 		foreach(AeroButton *btn, filterBtnListC) {
@@ -2216,70 +2103,54 @@ void RadioWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) 
 	}
 }
 
-void RadioWidget::agcModeChangedByBtn() {
+void RadioWidget::attenuatorChanged() {
 
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-	int btn = agcModeBtnList.indexOf(button);
-	
-	foreach(AeroButton *btn, agcModeBtnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
+	if (attenuatorBtn->btnState() == AeroButton::OFF) {
+		
+		set->setMercuryAttenuator(this, 0);
+		attenuatorBtn->setBtnState(AeroButton::ON);
+		attenuatorBtn->setText("Att -20dB");
+		emit newMessage("[hpsdr]: attenuator -20 dB.");
 	}
+	else {
 
-	m_settings->setAGCMode(this, m_currentRx, (AGCMode) btn);
-	m_agcMode = (AGCMode) btn;
-	
-	button->setBtnState(AeroButton::ON);
-	button->update();
+		set->setMercuryAttenuator(this, 1);
+		attenuatorBtn->setBtnState(AeroButton::OFF);
+		attenuatorBtn->setText("Att 0dB");
+		emit newMessage("[hpsdr]: attenuator 0 dB.");
+	}
 }
 
-void RadioWidget::agcModeChanged(QObject *sender, int rx, AGCMode mode) {
+void RadioWidget::setMercuryAttenuator(QObject *sender, HamBand band, int value) {
 
 	Q_UNUSED(sender)
-	
-	if (m_currentRx != rx) return;
-	m_agcMode = mode;
+	Q_UNUSED(band)
 
-	foreach(AeroButton *btn, agcModeBtnList) {
+	if (value) {
 
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
+		attenuatorBtn->setBtnState(AeroButton::OFF);
+		attenuatorBtn->setText("Att 0dB");
+		emit newMessage("[hpsdr]: attenuator 0 dB.");
 	}
+	else {
 
-	agcModeBtnList.at(mode)->setBtnState(AeroButton::ON);
-	agcModeBtnList.at(mode)->update();
-}
-
-void RadioWidget::preampChanged() {
-
-	if (preampBtn->btnState() == AeroButton::OFF) {
-		
-		m_settings->setPreamp(this, true);
-		preampBtn->setBtnState(AeroButton::ON);
-		preampBtn->setText("Att 0dB");
-		emit newMessage("[hpsdr]: preamp on.");
-	} else {
-
-		m_settings->setPreamp(this, false);
-		preampBtn->setBtnState(AeroButton::OFF);
-		preampBtn->setText("Att -20dB");
-		emit newMessage("[hpsdr]: preamp off.");
+		attenuatorBtn->setBtnState(AeroButton::ON);
+		attenuatorBtn->setText("Att -20dB");
+		emit newMessage("[hpsdr]: attenuator -20 dB.");
 	}
-	
 }
 
 void RadioWidget::ditherChanged() {
 
 	if (ditherBtn->btnState() == AeroButton::OFF) {
 		
-		m_settings->setDither(this, true);
+		set->setDither(this, true);
 		ditherBtn->setBtnState(AeroButton::ON);
 		emit newMessage("[hpsdr]: dither on.");
 
 	} else {
 
-		m_settings->setDither(this, false);
+		set->setDither(this, false);
 		ditherBtn->setBtnState(AeroButton::OFF);
 		emit newMessage("[hpsdr]: dither off.");
 	}
@@ -2289,90 +2160,26 @@ void RadioWidget::randomChanged() {
 
 	if (randomBtn->btnState() == AeroButton::OFF) {
 		
-		m_settings->setRandom(this, true);
+		set->setRandom(this, true);
 		randomBtn->setBtnState(AeroButton::ON);
 		emit newMessage("[hpsdr]: random on.");
 
 	} else {
 
-		m_settings->setRandom(this, false);
+		set->setRandom(this, false);
 		randomBtn->setBtnState(AeroButton::OFF);
 		emit newMessage("[hpsdr]: random off.");
 	}
 }
 
-void RadioWidget::sampleRateChangedTo48() {
+void RadioWidget::setCurrentReceiver(QObject *sender, int value) {
 
-	if (samplerate48Btn->btnState() == AeroButton::OFF) {
-
-		m_settings->setSampleRate(this, 48000);
-		samplerate48Btn->setBtnState(AeroButton::ON);
-		emit newMessage("[hpsdr]: sample rate changed to 48 kHz.");
-	}
-
-	if (samplerate96Btn->btnState() == AeroButton::ON) {
-
-		samplerate96Btn->setBtnState(AeroButton::OFF);
-		samplerate96Btn->update();
-	}
-
-	if (samplerate192Btn->btnState() == AeroButton::ON) {
-
-		samplerate192Btn->setBtnState(AeroButton::OFF);
-		samplerate192Btn->update();
-	}
-}
-
-void RadioWidget::sampleRateChangedTo96() {
-
-	if (samplerate96Btn->btnState() == AeroButton::OFF) {
-
-		m_settings->setSampleRate(this, 96000);
-		samplerate96Btn->setBtnState(AeroButton::ON);
-		emit newMessage("[hpsdr]: sample rate changed to 96 kHz.");
-	}
-
-	if (samplerate48Btn->btnState() == AeroButton::ON) {
-
-		samplerate48Btn->setBtnState(AeroButton::OFF);
-		samplerate48Btn->update();
-	}
-
-	if (samplerate192Btn->btnState() == AeroButton::ON) {
-
-		samplerate192Btn->setBtnState(AeroButton::OFF);
-		samplerate192Btn->update();
-	}
-}
-
-void RadioWidget::sampleRateChangedTo192() {
-
-	if (samplerate192Btn->btnState() == AeroButton::OFF) {
-
-		m_settings->setSampleRate(this, 192000);
-		samplerate192Btn->setBtnState(AeroButton::ON);
-		emit newMessage("[hpsdr]: sample rate changed to 192 kHz.");
-	}
-
-	if (samplerate48Btn->btnState() == AeroButton::ON) {
-
-		samplerate48Btn->setBtnState(AeroButton::OFF);
-		samplerate48Btn->update();
-	}
-
-	if (samplerate96Btn->btnState() == AeroButton::ON) {
-
-		samplerate96Btn->setBtnState(AeroButton::OFF);
-		samplerate96Btn->update();
-	}
-}
-
-void RadioWidget::setCurrentReceiver(int value) {
+	Q_UNUSED(sender)
 
 	if (m_currentRx == value) return;
 	m_currentRx = value;
 
-	TReceiver rxData = m_settings->getReceiverDataList().at(m_currentRx);
+	TReceiver rxData = set->getReceiverDataList().at(m_currentRx);
 
 	if (m_hamBand != rxData.hamBand) {
 		m_hamBand = rxData.hamBand;
@@ -2388,26 +2195,28 @@ void RadioWidget::setCurrentReceiver(int value) {
 		
 	}
 
-	if (m_dspMode != rxData.dspMode) {
+//	DSPMode mode = m_dspModeList.at(m_hamBand);
+//	if (mode != rxData.dspModeList.at(m_hamBand)) {
+//
+//		m_dspModeList[m_hamBand] = rxData.dspModeList.at(m_hamBand);
+//
+//		foreach(AeroButton *btn, dspModeBtnList) {
+//
+//			btn->setBtnState(AeroButton::OFF);
+//			btn->update();
+//		}
+//		qDebug() << "***********************    RadioWidget: DSPmode changed by changed receiver!";
+//		AeroButton *button = dspModeBtnList.at(mode);
+//		button->setBtnState(AeroButton::ON);
+//		button->update();
+//
+//		filterGroupChanged(mode);
+//		filterChanged(this, m_currentRx, m_filterLo, m_filterHi);
+//	}
 
-		m_dspMode = rxData.dspMode;
-
-		foreach(AeroButton *btn, dspModeBtnList) {
-			
-			btn->setBtnState(AeroButton::OFF);
-			btn->update();
-		}
-		AeroButton *button = dspModeBtnList.at(m_dspMode);
-		button->setBtnState(AeroButton::ON);
-		button->update();
-
-		filterGroupChanged(m_dspMode);
-		filterChanged(this, m_currentRx, m_filterLo, m_filterHi);
-	}
-
-	if (m_agcMode != rxData.agcMode) {
-		m_agcMode = rxData.agcMode;
-	}
+//	if (m_agcMode != rxData.agcMode) {
+//		m_agcMode = rxData.agcMode;
+//	}
 
 	if (m_filterLo != rxData.filterLo || m_filterHi != rxData.filterHi) {
 
@@ -2431,20 +2240,7 @@ void RadioWidget::systemStateChanged(
 	Q_UNUSED(hwmode)
 	Q_UNUSED(state)
 
-	if (mode == QSDR::ChirpWSPR) {
 
-		samplerate48Btn->setEnabled(false);
-		samplerate96Btn->setEnabled(false);
-		samplerate192Btn->setEnabled(false);
-	}
-	else {
-
-		samplerate48Btn->setEnabled(true);
-		samplerate96Btn->setEnabled(true);
-		samplerate192Btn->setEnabled(true);
-
-		//sampleRateChangedTo48();
-	}
 }
 
 void RadioWidget::closeEvent(QCloseEvent *event) {

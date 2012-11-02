@@ -29,6 +29,8 @@
 
 #include <QList>
 
+
+
 typedef enum _iaruRegion {
 
   region1,		//  0
@@ -56,8 +58,6 @@ typedef enum _hamBand {
 
 } HamBand;
 
-Q_DECLARE_METATYPE (_hamBand)
-
 typedef enum _dspMode {
 
   LSB,			//  0
@@ -75,8 +75,6 @@ typedef enum _dspMode {
 
 } DSPMode;
 
-Q_DECLARE_METATYPE (_dspMode)
-
 typedef enum _agcMode {
 
 	agcOFF, 
@@ -87,8 +85,6 @@ typedef enum _agcMode {
 	agcUser
 
 } AGCMode;
-
-Q_DECLARE_METATYPE (_agcMode)
 
 typedef enum _defaultFilterMode {
 
@@ -107,11 +103,15 @@ typedef enum _defaultFilterMode {
 	
 } TDefaultFilterMode;
 
+Q_DECLARE_METATYPE (_hamBand)
+Q_DECLARE_METATYPE (_dspMode)
+Q_DECLARE_METATYPE (_agcMode)
 Q_DECLARE_METATYPE (_defaultFilterMode)
 
 typedef struct _filter {
 
 	DSPMode dspMode;
+	//QRadio::_DSPMode dspMode;
 	TDefaultFilterMode defaultFilterMode;
 	qreal filterLo;
 	qreal filterHi;
@@ -123,8 +123,9 @@ typedef struct _hamBandFrequencies {
 	HamBand		hamBand;
 	IARURegion	region;
 	
-	long frequencyLo;
-	long frequencyHi;
+	QString		bandString;
+	long		frequencyLo;
+	long		frequencyHi;
 
 } THamBandFrequencies;
 
@@ -137,9 +138,20 @@ typedef struct _hamBandText {
 	long	frequencyHi;
 	int		maxBandwith;
 
-	QString		text;
+	QString			text;
+	QString			shortText;
+	QStringList		freqTextList;
 
 } THamBandText;
+
+typedef struct _hamBandDefaults {
+
+	HamBand	hamBand;
+	DSPMode	dspMode;
+
+	long	frequencyLo;
+
+} THamBandDefaults;
 
 //***********************************************************************
 
@@ -152,6 +164,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 1810000;
 	hamBandFreq.frequencyHi = 2000000;
 	hamBandFreq.hamBand = (HamBand) m160;
+	hamBandFreq.bandString = "160m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -159,6 +172,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 3500000;
 	hamBandFreq.frequencyHi = 3800000;
 	hamBandFreq.hamBand = (HamBand) m80;
+	hamBandFreq.bandString = "80m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -166,12 +180,13 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 5260000;
 	hamBandFreq.frequencyHi = 5410000;
 	hamBandFreq.hamBand = (HamBand) m60;
-
+	hamBandFreq.bandString = "60m";
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 7000000;
 	hamBandFreq.frequencyHi = 7200000;
 	hamBandFreq.hamBand = (HamBand) m40;
+	hamBandFreq.bandString = "40m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -179,6 +194,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 10100000;
 	hamBandFreq.frequencyHi = 10150000;
 	hamBandFreq.hamBand = (HamBand) m30;
+	hamBandFreq.bandString = "30m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -186,6 +202,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 14000000;
 	hamBandFreq.frequencyHi = 14350000;
 	hamBandFreq.hamBand = (HamBand) m20;
+	hamBandFreq.bandString = "20m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -193,6 +210,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 18068000;
 	hamBandFreq.frequencyHi = 18168000;
 	hamBandFreq.hamBand = (HamBand) m17;
+	hamBandFreq.bandString = "17m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -200,6 +218,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 21000000;
 	hamBandFreq.frequencyHi = 21450000;
 	hamBandFreq.hamBand = (HamBand) m15;
+	hamBandFreq.bandString = "15m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -207,6 +226,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 24890000;
 	hamBandFreq.frequencyHi = 24990000;
 	hamBandFreq.hamBand = (HamBand) m12;
+	hamBandFreq.bandString = "12m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -214,6 +234,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 28000000;
 	hamBandFreq.frequencyHi = 29700000;
 	hamBandFreq.hamBand = (HamBand) m10;
+	hamBandFreq.bandString = "10m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -221,6 +242,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 50000000;
 	hamBandFreq.frequencyHi = 54000000;
 	hamBandFreq.hamBand = (HamBand) m6;
+	hamBandFreq.bandString = "6m";
 	hamBandFreq.region = (IARURegion) region1;
 
 	hamBandFreqList << hamBandFreq;
@@ -228,6 +250,7 @@ inline QList<THamBandFrequencies> getHamBandFrequencies() {
 	hamBandFreq.frequencyLo = 0;
 	hamBandFreq.frequencyHi = 61440000;
 	hamBandFreq.hamBand = (HamBand) gen;
+	hamBandFreq.bandString = "Gen";
 
 	hamBandFreqList << hamBandFreq;
 
@@ -245,7 +268,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m160;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 1836 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "1836 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -255,6 +280,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
 	hamBandText.text = "Narrow band modes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -263,7 +289,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m160;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes – digimodes, Lowest dial setting for LSB Voice mode: 1843, 3603 and 7053 kHz";
+	hamBandText.text = "All modes, digimodes, Lowest dial setting for LSB Voice mode: 1843, 3603 and 7053 kHz";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -273,6 +300,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes, Lowest dial setting for LSB Voice mode: 1843, 3603 and 7053 kHz";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -282,6 +310,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
 	hamBandText.text = "CW, priority for intercontinental operation";
+	hamBandText.shortText = "CW";
 
 	hamBandTextList << hamBandText;
 
@@ -290,7 +319,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, contest preferred, 3555 kHz - QRS Centre of Activity";
+	hamBandText.text = "CW, contest preferred";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "3555 kHz: QRS Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -299,7 +330,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 3560 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "3560 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -308,7 +341,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -317,7 +351,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -326,7 +361,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "All modes - digimodes, automatically controlled data station (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data station (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -335,7 +371,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 3630 kHz - Digital Voice Centre of Activity, SSB contest preferred";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "3630 kHz: Digital Voice Centre of Activity, SSB contest preferred";
 
 	hamBandTextList << hamBandText;
 
@@ -344,7 +382,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 3690 kHz - SSB QRP Centre of Activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "3690 kHz: SSB QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -353,7 +393,10 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m80;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, SSB contest preferred, 3735 kHz: Image Centre of Activity, 3760 kHz: Region 1 Emergency Centre of Activity";
+	hamBandText.text = "All modes, SSB contest preferred";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "3735 kHz: Image Centre of Activity";
+	hamBandText.freqTextList << "3760 kHz: Region 1 Emergency Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -363,6 +406,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes, priority for intercontinental operation";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -371,7 +415,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 7030 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "7030 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -380,7 +426,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -389,7 +436,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes – digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -398,7 +446,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -407,7 +456,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - digimodes";
+	hamBandText.text = "All modes, digimodes";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -416,7 +466,10 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, SSB contest preferred, 7070 kHz: Digital Voice Centre of Activity, 7090 kHz: SSB QRP Centre of Activity";
+	hamBandText.text = "All modes, SSB contest preferred";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "7070 kHz: Digital Voice Centre of Activity";
+	hamBandText.freqTextList << "7090 kHz: SSB QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -425,7 +478,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 7110 kHz: Region 1 Emergency Centre of Activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "7110 kHz: Region 1 Emergency Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -434,7 +489,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m40;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, SSB contest preferred, 7165 kHz: Image Centre of Activity";
+	hamBandText.text = "All modes, SSB contest preferred";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "7165 kHz: Image Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -444,6 +501,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes, priority for intercontinental operation";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -452,7 +510,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m30;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW,   10116 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "10116 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -461,7 +521,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m30;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes – digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -470,7 +531,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, contest preferred, 14055 kHz - QRS Centre of Activity";
+	hamBandText.text = "CW, contest preferred;";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "14055 kHz: QRS Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -479,7 +542,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 14060 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW, 14060 kHz, QRP Centre of Activity";
+	hamBandText.shortText = "CW";
 
 	hamBandTextList << hamBandText;
 
@@ -488,7 +552,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -497,7 +562,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -507,6 +573,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, exclusively for beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -515,7 +582,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -525,6 +593,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -533,7 +602,12 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, SSB contest preferred, 14130 kHz: Digital Voice Centre of Activity, 14195 kHz ± 5 kHz: Priority for Dxpeditions, 14230 kHz: Image Centre of Activity, 14285 kHz: SSB QRP Centre of Activity";
+	hamBandText.text = "All modes, SSB contest preferred";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "14130 kHz: Digital Voice Centre of Activity";
+	hamBandText.freqTextList << "14195 kHz ± 5 kHz: Priority for Dxpeditions";
+	hamBandText.freqTextList << "14230 kHz: Image Centre of Activity";
+	hamBandText.freqTextList << "14285 kHz: SSB QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -542,7 +616,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m20;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 14300 kHz - Global Emergency centre of activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "14300 kHz: Global Emergency centre of activity";
 
 	hamBandTextList << hamBandText;
 
@@ -551,7 +627,9 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m17;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 18086 kHz - QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "18086 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -560,7 +638,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m17;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -569,7 +648,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m17;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -579,6 +659,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, exclusively for beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -588,6 +669,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "IBP, exclusively for beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -596,7 +678,11 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m17;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 18130 kHz: SSB QRP Centre of Activity, 18150 kHz: Digital Voice Centre of Activity, 18160 kHz: Global Emergency Centre of Activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "18130 kHz: SSB QRP Centre of Activity";
+	hamBandText.freqTextList << "18150 kHz: Digital Voice Centre of Activity";
+	hamBandText.freqTextList << "18160 kHz: Global Emergency Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -605,7 +691,10 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m15;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 21055 kHz: QRS Centre of Activity, 21060 kHz: QRP Centre of Activity";
+	hamBandText.text = "CW";
+	hamBandText.shortText = "CW";
+	hamBandText.freqTextList << "21055 kHz: QRS Centre of Activity";
+	hamBandText.freqTextList << "21060 kHz: QRP Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -614,7 +703,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m15;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -623,7 +713,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m15;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -632,7 +723,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m15;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes (excluding SSB) - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes (excluding SSB), digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes (excluding SSB)";
 
 	hamBandTextList << hamBandText;
 
@@ -642,6 +734,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
 	hamBandText.text = "Narrow band modes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -651,6 +744,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, exclusively for beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -659,7 +753,12 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m15;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 21180 kHz - Digital Voice Centre of Activity, 21285 kHz: SSB QRP Centre of Activity, 21340 kHz: Image Centre of Activity, 21360 kHz: Global Emergency Centre of Activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "21180 kHz: Digital Voice Centre of Activity";
+	hamBandText.freqTextList << "21285 kHz: SSB QRP Centre of Activity";
+	hamBandText.freqTextList << "21340 kHz: Image Centre of Activity";
+	hamBandText.freqTextList << "21360 kHz: Global Emergency Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -668,7 +767,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m12;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
-	hamBandText.text = "CW, 24906 kHz - QRP centre of activity";
+	hamBandText.text = "CW, 24906 kHz, QRP centre of activity";
+	hamBandText.shortText = "CW";
 
 	hamBandTextList << hamBandText;
 
@@ -677,7 +777,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m12;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -686,7 +787,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m12;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -696,6 +798,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, exclusively for beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -704,7 +807,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m12;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -713,7 +817,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m12;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 24960 kHz - Digital Voice Centre of Activity";
+	hamBandText.text = "All modes, 24960 kHz: Digital Voice Centre of Activity";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -723,6 +828,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 200;
 	hamBandText.text = "CW, 28055 kHz: QRS Centre of Activity";
+	hamBandText.shortText = "CW";
 
 	hamBandTextList << hamBandText;
 
@@ -731,7 +837,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes";
+	hamBandText.text = "Narrow band modes, digimodes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -740,7 +847,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
-	hamBandText.text = "Narrow band modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "Narrow band modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -750,6 +858,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 500;
 	hamBandText.text = "Narrow band modes";
+	hamBandText.shortText = "Narrow band modes";
 
 	hamBandTextList << hamBandText;
 
@@ -759,6 +868,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, regional time shared beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -768,6 +878,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, worldwide time shared beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -777,6 +888,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "IBP, continuous duty beacons";
+	hamBandText.shortText = "IBP";
 
 	hamBandTextList << hamBandText;
 
@@ -785,7 +897,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - beacons";
+	hamBandText.text = "All modes, beacons";
+	hamBandText.shortText = "All modes, beacons";
 
 	hamBandTextList << hamBandText;
 
@@ -794,7 +907,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -803,7 +917,11 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 2700;
-	hamBandText.text = "All modes, 28330 kHz: Digital Voice Centre of Activity, 28360 kHz: SSB QRP Centre of Activity, 28680 kHz: Image Centre of Activity";
+	hamBandText.text = "All modes";
+	hamBandText.shortText = "All modes";
+	hamBandText.freqTextList << "28330 kHz: Digital Voice Centre of Activity";
+	hamBandText.freqTextList << "28360 kHz: SSB QRP Centre of Activity";
+	hamBandText.freqTextList << "28680 kHz: Image Centre of Activity";
 
 	hamBandTextList << hamBandText;
 
@@ -812,7 +930,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - FM simplex – 10 kHz channels";
+	hamBandText.text = "All modes, FM simplex: 10 kHz channels";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -821,7 +940,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - digimodes, automatically controlled data stations (unattended)";
+	hamBandText.text = "All modes, digimodes, automatically controlled data stations (unattended)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -831,6 +951,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
 	hamBandText.text = "Satellite-downlink";
+	hamBandText.shortText = "Satellite-downlink";
 
 	hamBandTextList << hamBandText;
 
@@ -840,6 +961,7 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 0;
 	hamBandText.text = "Guard channel";
+	hamBandText.shortText = "Guard channel";
 
 	hamBandTextList << hamBandText;
 
@@ -848,7 +970,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - FM repeater input (RH1 – RH8)";
+	hamBandText.text = "All modes, FM repeater input (RH1 to RH8)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -857,7 +980,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - FM calling channel";
+	hamBandText.text = "All modes, FM calling channel";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -866,7 +990,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - FM simplex repeater (parrot - input and output)";
+	hamBandText.text = "All modes, FM simplex repeater (parrot, input and output)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -875,7 +1000,8 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.hamBand = (HamBand) m10;
 	hamBandText.region = (IARURegion) region1;
 	hamBandText.maxBandwith = 6000;
-	hamBandText.text = "All modes - FM repeater outputs (RH1 – RH8)";
+	hamBandText.text = "All modes, FM repeater outputs (RH1 to RH8)";
+	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
 
@@ -975,6 +1101,176 @@ inline QList<TDefaultFilter> getDefaultFilterFrequencies() {
 	return defaultFilters;
 }
 
+inline QList<QList<THamBandDefaults> > getHamBandDefaults() {
+
+	QList<QList<THamBandDefaults> > hamBandDefaults;
+
+	QList<THamBandDefaults> hamBandDefault;
+
+	THamBandDefaults defaults;
+
+	defaults.hamBand = (HamBand) m160;
+	defaults.dspMode = (DSPMode) CWL;
+	defaults.frequencyLo = 1810000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m160;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 1835000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m160;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 1845000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m80;
+	defaults.dspMode = (DSPMode) CWL;
+	defaults.frequencyLo = 3501000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m80;
+	defaults.dspMode = (DSPMode) LSB;
+	defaults.frequencyLo = 3751000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m80;
+	defaults.dspMode = (DSPMode) LSB;
+	defaults.frequencyLo = 3850000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m60;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 5258500;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m40;
+	defaults.dspMode = (DSPMode) CWL;
+	defaults.frequencyLo = 7001000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m40;
+	defaults.dspMode = (DSPMode) LSB;
+	defaults.frequencyLo = 7152000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m30;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 10120000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m20;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 14010000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m20;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 14230000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m17;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 18090000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m17;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 18125000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m15;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 21001000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m15;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 21255000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m12;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 24895000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m12;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 24900000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m10;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 28010000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m10;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 28300000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) m6;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 50010000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m6;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 50125000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	defaults.hamBand = (HamBand) gen;
+	defaults.dspMode = (DSPMode) SAM;
+	defaults.frequencyLo = 590000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) gen;
+	defaults.dspMode = (DSPMode) SAM;
+	defaults.frequencyLo = 3850000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) gen;
+	defaults.dspMode = (DSPMode) SAM;
+	defaults.frequencyLo = 5975000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) gen;
+	defaults.dspMode = (DSPMode) SAM;
+	defaults.frequencyLo = 9550000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) gen;
+	defaults.dspMode = (DSPMode) SAM;
+	defaults.frequencyLo = 13845000;
+	hamBandDefault << defaults;
+
+	hamBandDefaults << hamBandDefault;
+
+	return hamBandDefaults;
+}
+
 inline HamBand getBandFromFrequency(const QList<THamBandFrequencies> bandList, long frequency) {
 
 	HamBand band;
@@ -1006,7 +1302,7 @@ inline TDefaultFilter getFilterFromDSPMode(const QList<TDefaultFilter> filterLis
 	return filterList.at(0);
 }
 
-inline QString getHamBandTextString(const QList<THamBandText> textList, long frequency) {
+inline QString getHamBandTextString(const QList<THamBandText> textList, bool shortText, long frequency) {
 
 	QString str = "";
 
@@ -1014,9 +1310,15 @@ inline QString getHamBandTextString(const QList<THamBandText> textList, long fre
 
 		if (textList.at(i).frequencyLo <= frequency && textList.at(i).frequencyHi >= frequency) {
 
-			str = textList.at(i).text;
+			if (shortText)
+				str = textList.at(i).shortText;
+			else
+				str = textList.at(i).text;
+			
 			return str;
 		}
+		else
+			str = "Out of Band";
 	}
 	return str;
 }

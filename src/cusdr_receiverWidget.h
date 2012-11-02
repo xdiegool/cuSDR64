@@ -27,12 +27,12 @@
 #ifndef CUSDR_RECEIVER_WIDGET_H
 #define CUSDR_RECEIVER_WIDGET_H
 
-#include <QWidget>
-#include <QGroupBox>
-#include <QLineEdit>
+//#include <QWidget>
+//#include <QGroupBox>
+//#include <QLineEdit>
 
 #include "cusdr_settings.h"
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
 
 class MiniReceiverWidget;
 

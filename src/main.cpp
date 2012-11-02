@@ -24,21 +24,47 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#include "cusdr_splash.h"
+#include "Util/cusdr_splash.h"
 #include "cusdr_settings.h"
+
+#if defined(Q_OS_WIN32)
+	#include "Util/cusdr_cpuUsage.h"
+#endif
+
 #include "cusdr_mainWidget.h"
 
-#include <QtGui>
-#include <QApplication>
-#include <QMessageBox>
-#include <QDebug>
-#include <QTime>
-#include <QTextBrowser>
-#include <QThread>
-#include <QtOpenGL/QGLFramebufferObject>
+//#include <QtGui>
+//#include <QApplication>
+//#include <QMessageBox>
+//#include <QDebug>
+//#include <QTime>
+//#include <QTextBrowser>
+//#include <QThread>
+//#include <QtOpenGL/QGLFramebufferObject>
 
-#ifndef QT_NO_CONCURRENT
+//#ifndef _WIN32_WINNT            // Specifies that the minimum required platform is Windows Vista.
+//#define _WIN32_WINNT 0x0600     // Change this to the appropriate value to target other versions of Windows.
+//#endif
 
+
+
+#if defined(Q_OS_WIN32)
+	DWORD WINAPI WatchItThreadProc(LPVOID lpParam);
+	CpuUsage usage;
+
+	DWORD WINAPI WatchItThreadProc(LPVOID lpParam) {
+
+		DWORD dummy;
+		while (true) {
+
+			short cpuUsage = usage.GetUsage();
+			Settings::instance()->setCPULoad(cpuUsage);
+
+			Sleep(1000);
+		}
+		return dummy;
+	}
+#endif
 
 void cuSDRMessageHandler(QtMsgType type, const char *msg) {
 
@@ -57,19 +83,23 @@ void cuSDRMessageHandler(QtMsgType type, const char *msg) {
     ts << txt << endl << flush;
 }
 
+
 int main(int argc, char *argv[]) {
 
 	#if (QT_VERSION < 0x040800)
 		#error("You need Qt v4.8.0 or later to compile this");
 	#endif
 
-	qInstallMsgHandler(cuSDRMessageHandler);
+	#ifndef DEBUG
+		qInstallMsgHandler(cuSDRMessageHandler);
+	#endif
+
     QApplication app(argc, argv);
 
     Settings::instance(&app);
 
-    app.setApplicationName(Settings::instance()->titleStr());
-    app.setApplicationVersion(Settings::instance()->versionStr());
+    app.setApplicationName(Settings::instance()->getTitleStr());
+    app.setApplicationVersion(Settings::instance()->getVersionStr());
 
 	class SleeperThread : public QThread {
 	
@@ -96,8 +126,8 @@ int main(int argc, char *argv[]) {
 
 	splash->showMessage(
 		"\n      " + 
-		Settings::instance()->titleStr() + " " +
-		Settings::instance()->versionStr() + 
+		Settings::instance()->getTitleStr() + " " +
+		Settings::instance()->getVersionStr() +
 		QObject::tr(":   Loading settings .."),
         Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 	SleeperThread::msleep(1000);
@@ -107,12 +137,12 @@ int main(int argc, char *argv[]) {
 
     Settings::instance()->setSettingsLoaded(Settings::instance()->loadSettings() >= 0);
 
-    if (Settings::instance()->settingsLoaded()) {
+    if (Settings::instance()->getSettingsLoaded()) {
 
         splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   Settings loaded."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
     }
@@ -120,8 +150,8 @@ int main(int argc, char *argv[]) {
 
         splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   Settings not loaded."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::red);
     }
@@ -132,8 +162,8 @@ int main(int argc, char *argv[]) {
 
 	splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   Checking for OpenGL V 2.0 ..."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 	SleeperThread::msleep(100);
@@ -143,8 +173,8 @@ int main(int argc, char *argv[]) {
 		qDebug() << "Init::\t OpenGL not found!";
 		splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   not found!"),
 			Qt::AlignTop | Qt::AlignLeft, Qt::red);
 		splash->hide();
@@ -162,8 +192,8 @@ int main(int argc, char *argv[]) {
 		qDebug() << "Init::\t OpenGL found, but appears to be less than OGL v2.0.";
 		splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   found but appears to be less than OGL v2.0"),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 		splash->hide();
@@ -181,8 +211,8 @@ int main(int argc, char *argv[]) {
 	qDebug() << "Init::\t OpenGL found.";
 	splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   OpenGL found."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 
@@ -193,8 +223,8 @@ int main(int argc, char *argv[]) {
 		qDebug() << "Init:: Framebuffer Objects not found!\n";
 		splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   fbuffers not found!"),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 
@@ -208,8 +238,8 @@ int main(int argc, char *argv[]) {
 		qDebug() << "Init::\t Framebuffer Objects found.";
 		splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   OpenGL Frame Buffer support found."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 
@@ -302,14 +332,18 @@ int main(int argc, char *argv[]) {
 
 	//qDebug() << "Answer is correct:" << 2048;
 
+	// cpu usage
+#if defined(Q_OS_WIN32)
+	CreateThread(NULL, 0, WatchItThreadProc, NULL, 0, NULL);
+#endif
 
 	// ****************************
 	// setup main window
 
 	splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   setting up main window .."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 
@@ -320,8 +354,8 @@ int main(int argc, char *argv[]) {
 
 	splash->showMessage(
 			"\n      " + 
-			Settings::instance()->titleStr() + " " +
-			Settings::instance()->versionStr() + 
+			Settings::instance()->getTitleStr() + " " +
+			Settings::instance()->getVersionStr() +
 			QObject::tr(":   Displaying main window .."),
 			Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
 
@@ -351,12 +385,3 @@ int main(int argc, char *argv[]) {
 	
     return app.exec();
 }
-
-#else
-
-int main() {
-	
-	qDebug() << "Qt Concurrent is not supported on this platform";
-}
-
-#endif

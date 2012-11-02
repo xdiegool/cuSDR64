@@ -28,18 +28,18 @@
 #ifndef _CUSDR_HPSDR_TABWIDGET_H
 #define _CUSDR_HPSDR_TABWIDGET_H
 
-#include <QWidget>
-#include <QTabWidget>
-#include <QGroupBox>
-#include <QLineEdit>
+//#include <QWidget>
+//#include <QTabWidget>
+//#include <QGroupBox>
+//#include <QLineEdit>
 
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_hpsdrWidget.h"
-#include "cusdr_alexWidget.h"
-#include "cusdr_pennyWidget.h"
-#include "cusdr_txWidget.h"
-#include "cusdr_emptyWidget.h"
+#include "cusdr_networkWidget.h"
+//#include "cusdr_transmitTabWidget.h"
+#include "cusdr_alexTabWidget.h"
+#include "cusdr_extCtrlWidget.h"
 
 
 class HPSDRTabWidget : public QTabWidget {
@@ -66,15 +66,19 @@ protected:
 	void	mouseReleaseEvent(QMouseEvent *event);
 
 private:
-	Settings*	m_settings;
+	Settings			*set;
 
-	QString		m_message;
+	QSDR::_Error				m_error;
+	QSDR::_ServerMode			m_serverMode;
+	QSDR::_HWInterfaceMode		m_hwInterface;
+	QSDR::_DataEngineState		m_dataEngineState;
 
-	HPSDRWidget*		m_hpsdrWidget;
-	AlexWidget*			m_alexWidget;
-	PennyWidget*		m_pennyWidget;
-	TxWidget*			m_txWidget;
-	EmptyWidget*		m_emptyWidget;
+	HPSDRWidget			*m_hpsdrWidget;
+	NetworkWidget		*m_networkWidget;
+	AlexTabWidget		*m_alexTabWidget;
+	ExtCtrlWidget		*m_extCtrlWidget;
+
+	QString				m_message;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
@@ -82,6 +86,13 @@ private:
 	void	setupConnections();
 
 private slots:
+	void systemStateChanged(
+		QObject *sender,
+		QSDR::_Error err,
+		QSDR::_HWInterfaceMode hwmode,
+		QSDR::_ServerMode mode,
+		QSDR::_DataEngineState state);
+
 	void setAlexPresence(bool value);
 	void setPennyPresence(bool value);
 	

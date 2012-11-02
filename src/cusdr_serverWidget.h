@@ -28,14 +28,20 @@
 #ifndef _CUSDR_SERVER_WIDGET_H
 #define _CUSDR_SERVER_WIDGET_H
 
-#include <QWidget>
-#include <QComboBox>
-#include <QGroupBox>
-#include <QSpinBox>
-#include <QLineEdit>
+//#include <QWidget>
+//#include <QComboBox>
+//#include <QGroupBox>
+//#include <QSpinBox>
+//#include <QLineEdit>
 
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
+
+#ifdef LOG_SERVER_WIDGET
+#   define SERVER_WIDGET_DEBUG qDebug().nospace() << "ServerWidget::\t"
+#else
+#   define SERVER_WIDGET_DEBUG nullDebug()
+#endif
 
 
 class ServerWidget : public QWidget {
@@ -58,37 +64,35 @@ protected:
 	void	showEvent(QShowEvent *event);
 
 private:
-	Settings*		m_settings;
+	Settings		*set;
 
 	QStringList		niList;
-	QTableWidget*	serverNITable;
+	QTableWidget	*serverNITable;
 
-	QGroupBox*		portAddressesGroup();
-	QGroupBox*		serverPortAddressGroup();
-	QGroupBox*		listenerPortAddressGroup();
-	QGroupBox*		audioPortAddressGroup();
-	QGroupBox*		serverNIGroupBox;
+	QGroupBox		*portAddressesGroup();
+	QGroupBox		*serverPortAddressGroup();
+	QGroupBox		*listenerPortAddressGroup();
+	QGroupBox		*audioPortAddressGroup();
+	QGroupBox		*serverNIGroupBox;
 
-	QGridLayout*	portGridBox;
-	QComboBox*		serverNetworkInterfaces;
+	QGridLayout		*portGridBox;
+	QComboBox		*serverNetworkInterfaces;
 	
-	QLabel*			labelServerPortLabel;
-	QLabel*			labelServerPortText;
-	QLabel*			labelListenerPortLabel;
-	QLabel*			labelListenerPortText;
-	QLabel*			labelAudioPortLabel;
-	QLabel*			labelAudioPortText;
+	QLabel			*labelServerPortLabel;
+	QLabel			*labelServerPortText;
+	QLabel			*labelListenerPortLabel;
+	QLabel			*labelListenerPortText;
+	QLabel			*labelAudioPortLabel;
+	QLabel			*labelAudioPortText;
 
-	QLineEdit*		le_server_address;
-	QLineEdit*		le_server_port;
-	QLineEdit*		le_listener_port;
-	QLineEdit*		le_audio_port;
+	QLineEdit		*le_server_address;
+	QLineEdit		*le_server_port;
+	QLineEdit		*le_listener_port;
+	QLineEdit		*le_audio_port;
 
 	QString			lineedit_style;
 
 	QSDR::_ServerMode		m_serverMode;
-	
-	QFont	m_titleFont;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;

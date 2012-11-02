@@ -36,19 +36,17 @@
 
 HPSDRServer::HPSDRServer(QObject *parent)
 	: QTcpServer(parent)
-	, m_settings(Settings::instance())
-	, m_hwInterface(m_settings->getHWInterface())
-	, m_serverMode(m_settings->getCurrentServerMode())
+	, set(Settings::instance())
+	, m_hwInterface(set->getHWInterface())
+	, m_serverMode(set->getCurrentServerMode())
 	, m_dataEngineState(QSDR::DataEngineDown)
 {
 	setupConnections();
 
-	for (int i = 0; i < MAX_RECEIVERS; i++) {
-
+	for (int i = 0; i < MAX_RECEIVERS; i++)
 		m_receivers[i] = -1;
-	}
 
-	seps = " ,\r\n";
+	m_separators = " ,\r\n";
 }
 
 HPSDRServer::~HPSDRServer() {
@@ -63,13 +61,13 @@ HPSDRServer::~HPSDRServer() {
 void HPSDRServer::setupConnections() {
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(masterSwitchChanged(QObject *, bool)), 
 		this, 
 		SLOT(masterSwitchChanged(QObject *, bool)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(systemStateChanged(
 					QObject *, 
 					QSDR::_Error, 
@@ -85,7 +83,7 @@ void HPSDRServer::setupConnections() {
 					QSDR::_DataEngineState)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(rxListChanged(QList<HPSDRReceiver *>)),
 		this,
 		SLOT(rxListChanged(QList<HPSDRReceiver *>)));
@@ -93,7 +91,7 @@ void HPSDRServer::setupConnections() {
 	CHECKED_CONNECT(
 		this, 
 		SIGNAL(clientDisconnectedEvent(int)), 
-		m_settings, 
+		set, 
 		SLOT(clientDisconnected(int)));
 
 	CHECKED_CONNECT(
@@ -124,7 +122,7 @@ void HPSDRServer::setSystemState(
 bool HPSDRServer::startServer() {
 
 	// listen for new connections
-	if (!listen(QHostAddress::Any, m_settings->listenPort())) {
+	if (!listen(QHostAddress::Any, set->getListenPort())) {
 
 		m_message = tr("[server]: unable to start the listening service: '%1'.");
 		emit messageEvent(m_message.arg(errorString()));
@@ -133,7 +131,7 @@ bool HPSDRServer::startServer() {
 	}
 
 	m_message = tr("[server]: is running on '%1:%2'.");
-	emit messageEvent(m_message.arg(m_settings->getServerAddr()).arg(serverPort()));
+	emit messageEvent(m_message.arg(set->getServerAddr()).arg(serverPort()));
 
 	return true;
 }
@@ -159,7 +157,7 @@ void HPSDRServer::stopServer() {
 	}
 }
 
-void HPSDRServer::rxListChanged(QList<HPSDRReceiver *> rxList) {
+void HPSDRServer::rxListChanged(QList<Receiver *> rxList) {
 
 	QMutexLocker locker(&m_serverMutex);
 		m_rxList = rxList;
@@ -251,7 +249,7 @@ void HPSDRServer::readCommand() {
 
 char *HPSDRServer::attachReceiver(int rx, int client) {
 
-	if (m_rxList[rx]->property("socketState") == HPSDRReceiver::RECEIVER_ATTACHED)
+	if (m_rxList[rx]->property("socketState") == Receiver::RECEIVER_ATTACHED)
 		return CLIENT_ATTACHED;
 
 	if (rx >= m_rxList.size())
@@ -266,7 +264,7 @@ char *HPSDRServer::attachReceiver(int rx, int client) {
 	m_rxList[rx]->setPeerAddress(m_clientConnections[client]->peerAddress());
 	
 	m_rxList[rx]->setIQPort(-1);
-	m_settings->setIQPort(this, rx, -1);
+	set->setIQPort(this, rx, -1);
 
 	SERVER_DEBUG	<< "attachReceiver client" 
 					<< m_rxList[rx]->getClient() 
@@ -275,13 +273,13 @@ char *HPSDRServer::attachReceiver(int rx, int client) {
 
 	m_receivers[client] = rx;
 	
-	m_settings->setClientConnected(this, true);
-	m_settings->setClientNoConnected(this, client);
+	set->setClientConnected(this, true);
+	set->setClientNoConnected(this, client);
 	
 	static char resp[80];
-    //sprintf_s(resp, "%s %d", "OK", m_settings->getSampleRate());
+    //sprintf_s(resp, "%s %d", "OK", set->getSampleRate());
 	
-	m_settings->setRxList(m_rxList);
+	set->setRxList(m_rxList);
 
 	return resp;
 }
@@ -291,7 +289,7 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
 	//if (m_rxList[rx]->property("socketState") == HPSDRReceiver::RECEIVER_ATTACHED)
 	//	return CLIENT_DETACHED;
 
-    if (rx >= m_settings->getNumberOfReceivers())
+    if (rx >= set->getNumberOfReceivers())
 		return RECEIVER_INVALID;
 
     //if (m_rxList[rx]->client != (HPSDRClient *) NULL)
@@ -304,19 +302,19 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
 
 	SleeperThread::msleep(200);
 	
-	m_settings->setRcveIQ(0);
-	m_settings->setSendIQ(0);
+	set->setRcveIQ(0);
+	set->setSendIQ(0);
 
 	m_receivers[client] = -1;
 
-	m_settings->setRxList(m_rxList);
+	set->setRxList(m_rxList);
     
     return OK;
 }
 
 char *HPSDRServer::setFrequency(long frequency, int rx) {
 
-	if (m_rxList[rx]->property("socketState") == HPSDRReceiver::RECEIVER_DETACHED)
+	if (m_rxList[rx]->property("socketState") == Receiver::RECEIVER_DETACHED)
 		return CLIENT_DETACHED;
 
 	if (m_rxList[rx]->getReceiver() < 0)
@@ -324,7 +322,7 @@ char *HPSDRServer::setFrequency(long frequency, int rx) {
 
 	//emit frequencyChangedEvent(true, rx, frequency);
 
-	m_settings->setFrequency(this, true, rx, frequency);
+	set->setFrequency(this, true, rx, frequency);
 
     return OK;
 }
@@ -393,15 +391,15 @@ char *HPSDRServer::parseCommand(char *command, int client) {
 						
 						emit setIQPortEvent(m_receivers[client], atoi(token));
 						//emit setConnectedStatusEvent(receivers[client], true);
-						m_settings->setRxConnectedStatus(this, m_receivers[client], true);
+						set->setRxConnectedStatus(this, m_receivers[client], true);
 						
 						// Remember the last receiver started, so that one will send demodulated data back to Mercury.
 						audioReceiver = m_receivers[client];
 
 						//emit newClientEvent(receivers[client]);
-						m_settings->setClientNoConnected(this, m_receivers[client]);
+						set->setClientNoConnected(this, m_receivers[client]);
 						//emit audioReceiverEvent(audioReceiver);
-						m_settings->setAudioRx(this, audioReceiver);
+						set->setAudioRx(this, audioReceiver);
 						
 						return OK;
 					} 
@@ -416,7 +414,7 @@ char *HPSDRServer::parseCommand(char *command, int client) {
 						
 						m_rxList[client]->setBSPort(atoi(token));
 						emit messageEvent(m_message.arg(client).arg(command));
-						m_settings->setRxList(m_rxList);
+						set->setRxList(m_rxList);
 						return OK;
 
                     } else {
@@ -439,13 +437,13 @@ char *HPSDRServer::parseCommand(char *command, int client) {
 				if (strcmp(token, "iq") == 0) {
 					
 					m_rxList[client]->setIQPort(-1);
-					m_settings->setRxList(m_rxList);
+					set->setRxList(m_rxList);
 					return OK;
 
 				} else if (strcmp(token, "bandscope") == 0) {
 					
 					m_rxList[client]->setBSPort(-1);
-					m_settings->setRxList(m_rxList);
+					set->setRxList(m_rxList);
 					return OK;
 
 				} 
@@ -464,13 +462,13 @@ char *HPSDRServer::parseCommand(char *command, int client) {
 				
 				selectAudio = atoi(token);
 				if (   (selectAudio >= 0) 
-						&& (selectAudio < m_settings->getNumberOfReceivers()) 
+						&& (selectAudio < set->getNumberOfReceivers()) 
 						&& (m_rxList[selectAudio]->getConnectedStatus())
 					) {	
 						//m_dataEngine->AudioReceiverChanged(selectAudio);
 						emit messageEvent(m_message.arg(client).arg(command));
 						//emit audioReceiverEvent(selectAudio);
-						m_settings->setAudioRx(this, selectAudio);
+						set->setAudioRx(this, selectAudio);
 						return OK;
 
 				} 

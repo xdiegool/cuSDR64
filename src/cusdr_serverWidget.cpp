@@ -26,9 +26,9 @@
  */
 #define LOG_SERVER_WIDGET
 
-#include <QtGui>
-#include <QDebug>
-#include <QScopedPointer>
+//#include <QtGui>
+//#include <QDebug>
+//#include <QScopedPointer>
 
 #include "cusdr_serverWidget.h"
 
@@ -38,23 +38,15 @@
 
 ServerWidget::ServerWidget(QWidget *parent) 
 	: QWidget(parent)
-	, m_settings(Settings::instance())
+	, set(Settings::instance())
+	, m_serverMode(Settings::instance()->getCurrentServerMode())
 	, m_minimumWidgetWidth(Settings::instance()->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(Settings::instance()->getMinimumGroupBoxWidth())
 	, m_btnSpacing(5)
-	, m_serverMode(Settings::instance()->getCurrentServerMode())
 {
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
-
-	//QFont titleFont;
-	m_titleFont.setStyleStrategy(QFont::PreferQuality);
-	m_titleFont.setPointSizeF(8);
-	m_titleFont.setFamily("Arial");
-
-	
-	// ****************
 
 	createServerNIGroup();
 	
@@ -105,13 +97,13 @@ QSize ServerWidget::minimumSizeHint() const {
 void ServerWidget::setupConnections() {
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(newServerNetworkInterface(QString, QString)), 
 		this, 
 		SLOT(addServerNIEntry(QString, QString)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(serverNICChanged(int)), 
 		this, 
 		SLOT(setServerNIC(int)));
@@ -122,7 +114,7 @@ void ServerWidget::addNICChangedConnection() {
 	CHECKED_CONNECT(
 		serverNetworkInterfaces, 
 		SIGNAL(currentIndexChanged(int)), 
-		m_settings,
+		set,
 		SLOT(setServerNetworkInterface(int)));
 }
 
@@ -224,7 +216,7 @@ QGroupBox *ServerWidget::portAddressesGroup() {
 
 QGroupBox *ServerWidget::serverPortAddressGroup() {
 
-	le_server_port = new QLineEdit(QString::number(Settings::instance()->serverPort()), this);
+	le_server_port = new QLineEdit(QString::number(Settings::instance()->getServerPort()), this);
 	le_server_port->setFont(font());
 	le_server_port->setFixedSize(50, QFontMetrics(le_server_port->font()).height() + 4);
 	le_server_port->setInputMask("00000;");
@@ -250,7 +242,7 @@ QGroupBox *ServerWidget::serverPortAddressGroup() {
 
 QGroupBox *ServerWidget::listenerPortAddressGroup() {
 
-	le_listener_port = new QLineEdit(QString::number(Settings::instance()->listenPort()), this);
+	le_listener_port = new QLineEdit(QString::number(Settings::instance()->getListenPort()), this);
 	le_listener_port->setFont(font());
 	le_listener_port->setFixedSize(50, le_server_port->height());
 	le_listener_port->setInputMask("00000;");
@@ -276,7 +268,7 @@ QGroupBox *ServerWidget::listenerPortAddressGroup() {
 
 QGroupBox *ServerWidget::audioPortAddressGroup() {
 
-	le_audio_port = new QLineEdit(QString::number(Settings::instance()->audioPort()), this);
+	le_audio_port = new QLineEdit(QString::number(Settings::instance()->getAudioPort()), this);
 	le_audio_port->setFont(font());
 	le_audio_port->setFixedSize(50, le_server_port->height());
 	le_audio_port->setInputMask("00000;");
@@ -311,9 +303,9 @@ void ServerWidget::setServerNIC(int index) {
 
 void ServerWidget::setPorts() {
 
-	labelServerPortText->setText(QString::number(Settings::instance()->serverPort()));
-	labelListenerPortText->setText(QString::number(Settings::instance()->listenPort()));
-	labelAudioPortText->setText(QString::number(Settings::instance()->audioPort()));
+	labelServerPortText->setText(QString::number(Settings::instance()->getServerPort()));
+	labelListenerPortText->setText(QString::number(Settings::instance()->getListenPort()));
+	labelAudioPortText->setText(QString::number(Settings::instance()->getAudioPort()));
 }
 
 void ServerWidget::closeEvent(QCloseEvent *event) {

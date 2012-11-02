@@ -25,33 +25,40 @@
  */
 
 #define LOG_MAIN
-#define LOG_NETWORKDIALOG
+//#define LOG_NETWORKDIALOG
 
-#include <QtGui>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QtNetwork>
-#include <QTimer>
+// use: MAIN_DEBUG
+// use: NETWORKDIALOG_DEBUG
+
+//#include <QtGui>
+//#include <QHBoxLayout>
+//#include <QVBoxLayout>
+//#include <QtNetwork>
+//#include <QTimer>
 
 #include "cusdr_mainWidget.h"
 
-
-#pragma comment(lib, "User32.lib")
+//#pragma comment(lib, "User32.lib")
 
 #ifdef Q_OS_X11
-#include <private/qt_x11_p.h>
-#else ifdef Q_OS_WIN
-#include "qt_windows.h"
+	#include <private/qt_x11_p.h>
 #endif
+//#else 
+#ifdef Q_OS_WIN
+	#include "qt_windows.h"
+#endif
+//#else 
 #ifdef Q_OS_MAC
-#include <private/qt_mac_p.h>
+	#include <private/qt_mac_p.h>
 #endif
 
-#define window_height1		56
+#define window_height1		600
 #define window_height2		750
-#define window_width		1000
-#define btn_width1			65
+#define window_width1		800
+#define window_width2		1030
+#define btn_width1			56//65
 #define btn_width2			54
+#define btn_width3			48
 #define btn_height1			17
 #define btn_height2			13
 #define btn_height3			16
@@ -71,18 +78,13 @@
 */
 MainWindow::MainWindow(QWidget *parent)
 	: QMainWindow(parent)
-	, m_settings(Settings::instance())
-	, m_serverMode(m_settings->getCurrentServerMode())
-	, m_hwInterface(m_settings->getHWInterface())
+	, set(Settings::instance())
+	, m_serverMode(set->getCurrentServerMode())
+	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_fullScreen(false)
-	, modeMenu(new QMenu(this))
-	, viewMenu(new QMenu(this))
 	, m_cudaPresence(false)
 	, m_mover(false)
 	, m_resizePosition(0)
-	, m_oldSampleRate(m_settings->getSampleRate())
-	, m_numberOfReceivers(m_settings->getNumberOfReceivers())
 {	
 	QPalette palette;
 	QColor color = Qt::black;
@@ -90,62 +92,52 @@ MainWindow::MainWindow(QWidget *parent)
 	palette.setColor(QPalette::Window, color);
 	setPalette(palette);
 
-	m_smallFont.setStyleStrategy(QFont::PreferAntialias);
-	m_smallFont.setBold(true);
-	m_smallFont.setFixedPitch(true);
-	#ifdef Q_OS_MAC
-		m_smallFont.setPixelSize(10);
-		m_smallFont.setFamily("Arial");
-	#else if Q_OS_WIN
-		m_smallFont.setPixelSize(10);
-		m_smallFont.setFamily("Arial");
-	#endif
+	setAutoFillBackground(true);
+	setMouseTracking(true);
+	setContentsMargins(0, 0, 0, 0);
+	
+	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
+	setMinimumSize(QSize(window_width1, window_height1));
+	setStyleSheet(set->getSDRStyle());
+	//menuBar()->setStyleSheet(set->getMenuStyle());
 
-	this->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
-	this->setMinimumSize(QSize(window_width, window_height2));
-	this->setStyleSheet(m_settings->getSDRStyle());
-	//this->menuBar()->setStyleSheet(m_settings->getMenuStyle());
+	m_fullScreen = false;
+	
+	m_oldSampleRate = set->getSampleRate();
+	m_numberOfReceivers = set->getNumberOfReceivers();
+	m_alexConfig = set->getAlexConfig();
+	m_alexStates = set->getAlexStates();
+	m_mercuryAttn = set->getMercuryAttenuators(0);
+	m_currentHamBand = set->getCurrentHamBand(0);
 
-	centralwidget = new QMainWindow(this);
-	centralwidget->setWindowFlags(Qt::Widget);
-	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
-	centralwidget->setStyleSheet(m_settings->getMainWindowStyle());
-	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(m_settings->getMenuStyle());
+	m_alexAttnState = 0x03 & (m_alexStates[m_currentHamBand] >> 7);
+	m_mercuryAttnState = m_mercuryAttn.at(m_currentHamBand);
+
+	fonts = new CFonts(this);
+	m_fonts = fonts->getFonts();
+
 
 	m_dataEngine = new DataEngine(this);
-	m_hpsdrServer = new HPSDRServer(this);
-	//m_oglDisplayPanel = new OGLDisplayPanel(this);
-	m_graphicOptionsWidget = new GraphicOptionsWidget(this);
-	m_radioWidget = new RadioWidget(this);
+	m_radioPopupWidget = new RadioPopupWidget(this);
 	m_serverWidget = new ServerWidget(this);
 	m_chirpWidget = new ChirpWidget(this);
 	m_hpsdrTabWidget = new HPSDRTabWidget(this);
-	
+	m_radioTabWidget = new RadioTabWidget(this);
+	m_displayTabWidget = new DisplayTabWidget(this);
+
 	m_wbDisplay = 0;
 
-	setAutoFillBackground(true);
-	setMouseTracking(true);
-
-	setContentsMargins(0, 0, 0, 0);
-
-	m_radioWidget->hide();
+	m_radioPopupWidget->hide();
 	m_serverWidget->hide();
 	m_chirpWidget->hide();
 	m_hpsdrTabWidget->hide();
-	m_graphicOptionsWidget->hide();
+	m_radioTabWidget->hide();
+	m_displayTabWidget->hide();
 
-	m_resizeTimer = new QTimer(this);
-	
-	//m_oglWidget = new OGLWidget(this);
-	//m_oglWidget = new OGLWidget();
 
-	//// we collect the widgets in the widgetList
-	//widgetList.append(m_radioWidget);	
-	//widgetList.append(m_serverWidget);
-	//widgetList.append(m_hpsdrTabWidget);
-	//widgetList.append(m_chirpWidget);
-	//widgetList.append(m_graphicOptionsWidget);
-	updateTitle();
+	//m_resizeTimer = new QTimer(this);
+	//cpuLoadThread = new QThreadEx();
+	//updateTitle();
 
 	MAIN_DEBUG << "main window init done";
 }
@@ -156,83 +148,10 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() {
 }
 
- 
 /*!
 	\brief set up connections.
 */
 void MainWindow::setupConnections() {
-
-	CHECKED_CONNECT(
-		m_dataEngine, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
-
-	//if (m_graphicsWidget) {
-
-	//	CHECKED_CONNECT(
-	//		m_dataEngine,
-	//		SIGNAL(spectrumBufferChanged(const float*)),
-	//		m_graphicsWidget,
-	//		SLOT(setSpectrumBuffer(const float*)));
-
-	//	CHECKED_CONNECT(
-	//		m_dataEngine,
-	//		SIGNAL(wbSpectrumBufferChanged(const float*)),
-	//	m_graphicsWidget,
-	//	SLOT(wbSpectrumBufferChanged(const float*)));
-	//	//Qt::DirectConnection);
-	//}
-
-	//*******************************************
-
-	CHECKED_CONNECT(
-		m_hpsdrServer, 
-		SIGNAL(masterSwitchEvent()), 
-		this, 
-		SLOT(startButtonClickedEvent()));
-
-	CHECKED_CONNECT(
-		m_hpsdrServer, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
-
-	CHECKED_CONNECT(
-		m_radioWidget, 
-		SIGNAL(showEvent(QObject *)), 
-		this, 
-		SLOT(showWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_radioWidget, 
-		SIGNAL(closeEvent(QObject *)), 
-		this, 
-		SLOT(closeWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_serverWidget, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
-
-	CHECKED_CONNECT(
-		m_serverWidget, 
-		SIGNAL(showEvent(QObject *)), 
-		this, 
-		SLOT(showWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_serverWidget, 
-		SIGNAL(closeEvent(QObject *)), 
-		this, 
-		SLOT(closeWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_chirpWidget, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
 
 	CHECKED_CONNECT(
 		m_chirpWidget, 
@@ -258,30 +177,6 @@ void MainWindow::setupConnections() {
 		this, 
 		SLOT(showSettingsDialogSignal(QObject *)));
 
-	/*CHECKED_CONNECT(
-		m_hpsdrWidget, 
-		SIGNAL(showEvent(QObject *)), 
-		this, 
-		SLOT(showWidgetEvent(QObject *)));*/
-
-	CHECKED_CONNECT(
-		m_hpsdrTabWidget, 
-		SIGNAL(showEvent(QObject *)), 
-		this, 
-		SLOT(showWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_hpsdrTabWidget, 
-		SIGNAL(closeEvent(QObject *)), 
-		this, 
-		SLOT(closeWidgetEvent(QObject *)));
-
-	CHECKED_CONNECT(
-		m_hpsdrTabWidget, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
-
 	/*if (m_cudaPresence) {
 	
 		CHECKED_CONNECT(
@@ -298,125 +193,149 @@ void MainWindow::setupConnections() {
 	}*/
 	
 	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(messageEvent(QString)), 
+		set,
+		SIGNAL(cpuLoadChanged(short)), 
 		this, 
-		SLOT(showMessage(QString)));
+		SLOT(updateStatusBar(short)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(masterSwitchChanged(QObject *, bool)), 
 		this, 
 		SLOT(masterSwitchChanged(QObject *, bool)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(numberOfRXChanged(QObject *, int)), 
 		this, 
 		SLOT(setNumberOfReceivers(QObject *, int)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(systemStateChanged(
-					QObject *, 
-					QSDR::_Error, 
-					QSDR::_HWInterfaceMode, 
-					QSDR::_ServerMode, 
-					QSDR::_DataEngineState)), 
-		this, 
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
+					QSDR::_DataEngineState)),
+		this,
 		SLOT(systemStateChanged(
-					QObject *, 
-					QSDR::_Error, 
-					QSDR::_HWInterfaceMode, 
-					QSDR::_ServerMode, 
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
 					QSDR::_DataEngineState)));
 
 	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(receiverChanged(int)),
+		set,
+		SIGNAL(currentReceiverChanged(QObject *, int)),
 		this,
-		SLOT(setReceiver(int)));
+		SLOT(setCurrentReceiver(QObject *, int)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(callsignChanged()),
 		this,
 		SLOT(updateTitle()));
 
-	/*CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(alexPresenceChanged(bool)),
-		this,
-		SLOT(setAlexPresence(bool)));
-
 	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(penelopePresenceChanged(bool)),
-		this,
-		SLOT(setPennyPresence(bool)));
-
-	CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(pennyLanePresenceChanged(bool)),
-		this,
-		SLOT(setPennyPresence(bool)));*/
-
-	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(showNetworkIO()),
 		this,
 		SLOT(showNetworkIODialog()));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(showWarning(const QString &)),
 		this,
 		SLOT(showWarningDialog(const QString &)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(networkIOComboBoxEntryAdded(QString)),
 		this,
 		SLOT(addNetworkIOComboBoxEntry(QString)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
 		SIGNAL(clearNetworkIOComboBoxEntrySignal()),
 		this,
 		SLOT(clearNetworkIOComboBoxEntry()));
 
 	CHECKED_CONNECT(
-		m_settings,
+		set,
 		SIGNAL(spectrumBufferChanged(int, const float*)),
 		this,
 		SLOT(setSpectrumBuffer(int, const float*)));
 
-	/*CHECKED_CONNECT(
-		m_settings, 
-		SIGNAL(peakHoldStatusChanged(bool)),
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(showRadioPopupChanged(bool)),
 		this,
-		SLOT(setPeakHoldStatus(bool)));*/
+		SLOT(showRadioPopup(bool)));
 
 	CHECKED_CONNECT(
-		m_graphicOptionsWidget, 
-		SIGNAL(messageEvent(QString)), 
-		this, 
-		SLOT(showMessage(QString)));
+		set,
+		SIGNAL(txAllowedChanged(QObject *, bool)),
+		this,
+		SLOT(setTxAllowed(QObject *, bool)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
+		this,
+		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(agcMaximumGainChanged_dB(QObject *, int, qreal)),
+		this,
+		SLOT(setAGCGain(QObject *, int, qreal)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(agcFixedGainChanged_dB(QObject *, int, qreal)),
+		this,
+		SLOT(setAGCGain(QObject *, int, qreal)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
+		this,
+		SLOT(mercuryAttenuatorChanged(QObject *, HamBand, int)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(alexPresenceChanged(bool)),
+		this,
+		SLOT(alexPresenceChanged(bool)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(alexConfigurationChanged(quint16)),
+		this,
+		SLOT(alexConfigurationChanged(quint16)));
+
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(alexStateChanged(HamBand, const QList<int> &)),
+		this,
+		SLOT(alexStateChanged(HamBand, const QList<int> &)));
 }
 
- 
 /*!
 	\brief setup the main window:
 	- create main button group
-	- create console widget
-	- set up main layout
-	- create mode menu
-	- set up connections
+	- create dock widgets
+	- create mode menus
+	- setup main layout
+	- setup connections
+	- setup dialog windows
 	- get network interfaces
 */
 void MainWindow::setup() {
 	
-	createConsoleWidget();
+	//runFFTWWisdom();
 	createDisplayPanel();
 
 	addToolBarBreak(Qt::TopToolBarArea);
@@ -425,19 +344,22 @@ void MainWindow::setup() {
 	createStatusBar();
 	createModeMenu();
 	createViewMenu();
+	createAttenuatorMenu();
 	
 	initWidebandDisplay();
 	initReceiverPanels(MAX_RECEIVERS);
 	
 	setupLayout();
+	updateTitle();
 
-	initialMessage();
+	if (set->getWideBandData()) {
 
-	if (m_settings->getWideBandStatus())
-		wideBandBtnClickedEvent();
+		wideBandBtn->setEnabled(true);
 
-	setupConnections();
-	updateFromSettings();
+		if (set->getWideBandStatus())
+			wideBandBtnClickedEvent();
+	}
+
 
 	// get network interfaces
 	getNetworkInterfaces();
@@ -464,7 +386,7 @@ void MainWindow::setup() {
 	//	showMessage(m_message.arg(clDevices.length()));
 	//	//QString clNo = QString::number(m_clDevices.length());
 	//}
-	//m_settings->setOpenCLDevices(clDevices);
+	//set->setOpenCLDevices(clDevices);
 
 	//m_tlw = this;
 	//setNumberOfReceivers(this, 1);
@@ -472,6 +394,36 @@ void MainWindow::setup() {
 	//m_oglDisplayPanel->updateGL();
 
 	setCentralWidget(centralwidget);
+
+	m_oglDisplayPanel->updateGL();
+	alexConfigurationChanged(m_alexConfig);
+	setAttenuatorButton();
+
+	m_agcMode = set->getAGCMode(0);
+
+	setupConnections();
+	updateFromSettings();
+}
+
+void MainWindow::runFFTWWisdom() {
+
+	QString directory = QDir::currentPath();
+	
+	m_currentDir = QDir(directory);
+	qDebug() << m_currentDir;
+	
+	if (m_currentDir.exists("wisdom")) {
+	
+		qDebug() << "wisdom exists !";
+		return;
+	}
+	else {
+	
+		qDebug() << "wisdom does not exist - running fftw-wisdom.exe ...";
+		QProcess process;
+		process.start("fftwf-wisdom.exe");
+		process.waitForFinished();
+	}
 }
 
 /*!
@@ -481,9 +433,10 @@ void MainWindow::createDisplayPanel() {
 
 	m_oglDisplayPanel = new OGLDisplayPanel(this);
 	
-	displayPanelToolBar = new QToolBar(tr("Display Panel"));
+	displayPanelToolBar = new QToolBar(tr("Display Panel"), this);
+	displayPanelToolBar->setAllowedAreas(Qt::TopToolBarArea);
 	displayPanelToolBar->setMovable(false);
-	displayPanelToolBar->setStyleSheet(m_settings->getToolbarStyle());
+	displayPanelToolBar->setStyleSheet(set->getDisplayToolbarStyle());
 	displayPanelToolBar->addWidget(m_oglDisplayPanel);
 
 	addToolBar(displayPanelToolBar);
@@ -498,57 +451,25 @@ void MainWindow::update() {
 	//	m_oglWidget->update();
 }
 
- 
 /*!
 	\brief set up the main layout.
 */
 void MainWindow::setupLayout() {
 
-	//rx1Dock = new QDockWidget(tr("Receiver 1"), this);
-	//rx1Dock->setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	//rx1Dock->setStyleSheet(m_settings->getDockStyle());
-	//rx1Dock->setWidget(rxWidgetList.at(0));
-
-	////centralwidget->addDockWidget(Qt::BottomDockWidgetArea, rx1Dock);
-	//addDockWidget(Qt::BottomDockWidgetArea, rx1Dock);
-
-	//widebandDock = new QDockWidget(tr("Wideband"), this);
-	//widebandDock->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
- //   widebandDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	//widebandDock->setStyleSheet(m_settings->getDockStyle());
- //   widebandDock->setWidget(m_wbDisplay);
-	//
-	////centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
-	//addDockWidget(Qt::TopDockWidgetArea, widebandDock);
-	//widebandDock->hide();
-
-	//CHECKED_CONNECT(
-	//	widebandDock,
-	//	SIGNAL(visibilityChanged(bool)),
-	//	this,
-	//	SLOT(widebandVisibilityChanged(bool)));
+	centralwidget = new QMainWindow(this);
+	centralwidget->setWindowFlags(Qt::Widget);
+	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
+	centralwidget->setStyleSheet(set->getMainWindowStyle());
+	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
 
 
-	QDockWidget* dock = new QDockWidget(tr("Log"), this);
+	QDockWidget *dock = new QDockWidget(tr("Radio Ctrl"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
+	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
-	dock->setWidget(m_msgBrowser);
-	dockWidgetList.append(dock);
-
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-
-
-	dock = new QDockWidget(tr("Rx Ctrl"), this);
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dock->setWidget(m_radioWidget);
+	dock->setWidget(m_radioTabWidget);
 	dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
@@ -558,7 +479,7 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("Server Ctrl"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
+	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
 	dock->setWidget(m_serverWidget);
@@ -571,7 +492,7 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("HPSDR Ctrl"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
+	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
 	dock->setWidget(m_hpsdrTabWidget);
@@ -584,7 +505,7 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("Chirp Ctrl"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
+	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
 	dock->setWidget(m_chirpWidget);
@@ -597,10 +518,10 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("Display Ctrl"), this);
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(m_settings->getDockStyle());
+	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
-	dock->setWidget(m_graphicOptionsWidget);
+	dock->setWidget(m_displayTabWidget);
 	dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
@@ -611,7 +532,7 @@ void MainWindow::setupLayout() {
 
 	/*rx1Dock = new QDockWidget(tr("Receiver 1"), this);
 	rx1Dock->setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	rx1Dock->setStyleSheet(m_settings->getDockStyle());
+	rx1Dock->setStyleSheet(set->getDockStyle());
 	rx1Dock->setWidget(rxWidgetList.at(0));
 
 	centralwidget->addDockWidget(Qt::BottomDockWidgetArea, rx1Dock);*/
@@ -619,7 +540,7 @@ void MainWindow::setupLayout() {
 	widebandDock = new QDockWidget(tr("Wideband"), this);
 	widebandDock->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     widebandDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	widebandDock->setStyleSheet(m_settings->getDockStyle());
+	widebandDock->setStyleSheet(set->getDockStyle());
     widebandDock->setWidget(m_wbDisplay);
 	
 	centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
@@ -641,7 +562,7 @@ void MainWindow::setupLayout() {
 		//dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 		//dock->setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 		//dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-		dock->setStyleSheet(m_settings->getDockStyle());
+		dock->setStyleSheet(set->getDockStyle());
 		//dock->setMaximumWidth(245);
 		//dock->setMinimumWidth(245);
 		dock->setWidget(rxWidgetList.at(i));
@@ -650,6 +571,7 @@ void MainWindow::setupLayout() {
 		centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock);
 		dock->hide();
 
+		rxVolumeList << 0.0f;
 		//viewMenu->addAction(dock->toggleViewAction());
 	}
 
@@ -688,44 +610,46 @@ void MainWindow::initReceiverPanels(int rx) {
 
 void MainWindow::createStatusBar() {
 
-	statusBar()->setStyleSheet(m_settings->getStatusbarStyle());
-    statusBar()->showMessage(tr("Ready"));
+	QDateTime dateTime = QDateTime::currentDateTime();
+	m_dateTimeString = dateTime.toString();
+	m_dateTimeString.append(" (loc)");
+
+	m_dateTimeLabel = new QLabel(m_dateTimeString, this);
+	//m_dateTimeLabel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
+	m_dateTimeLabel->setStyleSheet(set->getLabelStyle());
+
+	statusBar()->setStyleSheet(set->getStatusbarStyle());
+	//statusBar()->setSizeGripEnabled(true);
+	statusBar()->addPermanentWidget(m_dateTimeLabel);
 }
 
-/*!
-	\brief create the console widget.
-*/
-void MainWindow::createConsoleWidget() {
+void MainWindow::updateStatusBar(short load) {
 
-	QFont browserFont;
-	//browserFont.setStyleStrategy(QFont::PreferAntialias);
-	browserFont.setFixedPitch(true);
-	browserFont.setPixelSize(11);
-	browserFont.setFamily("Arial");
+	QString str = "CPU load: %1 %";
+	statusBar()->showMessage(str.arg(load));
 
-	m_msgBrowser = new QPlainTextEdit(this);
-	m_msgBrowser->setReadOnly(true);
-	//m_msgBrowser->setLineWrapMode(QPlainTextEdit::NoWrap);
-	m_msgBrowser->setFont(browserFont);
-	m_msgBrowser->setStyleSheet(m_settings->getMessageBoxStyle());
+	QDateTime dateTime = QDateTime::currentDateTime();
+	m_dateTimeString = dateTime.toString();
+	m_dateTimeString.append(" (loc)");
+
+	m_dateTimeLabel->setText(m_dateTimeString);
 }
- 
+
 /*!
 	\brief create the main button group.
 */
 void MainWindow::createMainBtnGroup() {
 
-	//QStyleOptionToolBar btnToolbarStyle;
-	mainBtnToolBar = new QToolBar(tr("Main Buttons"));
-	//mainBtnToolBar = addToolBar(tr("Main Buttons"));
+	mainBtnToolBar = new QToolBar(tr("Main Buttons"), this);
+	//mainBtnToolBar->setAllowedAreas(Qt::TopToolBarArea);
 	mainBtnToolBar->setMovable(false);
-	mainBtnToolBar->setStyleSheet(m_settings->getToolbarStyle());
+	mainBtnToolBar->setStyleSheet(set->getMainBtnToolbarStyle());
 	
 	m_buttonWidget = new QWidget(this);
 
-	QHBoxLayout *firstBtnLayout = new QHBoxLayout(this);
-	firstBtnLayout->setSpacing(0);
-	firstBtnLayout->setMargin(0);
+//	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
+//	firstBtnLayout->setSpacing(0);
+//	firstBtnLayout->setMargin(0);
 	
 	startBtn = new AeroButton("Start", this);
 	startBtn->setRoundness(10);
@@ -748,30 +672,13 @@ void MainWindow::createMainBtnGroup() {
 		this, 
 		SLOT(ctrlDisplayBtnClickedEvent()));*/
 
-	serverLogBtn = new AeroButton("Log", this);
-	serverLogBtn->setRoundness(10);
-	serverLogBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(serverLogBtn);
-
-	/*CHECKED_CONNECT(
-		serverLogBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(messagesBtnClickedEvent()));*/
-
-	CHECKED_CONNECT(
-		serverLogBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
-
-	rxCtrlBtn = new AeroButton("Rx Ctrl", this);
+	rxCtrlBtn = new AeroButton("Radio Ctrl", this);
 	rxCtrlBtn->setRoundness(10);
 	rxCtrlBtn->setFixedSize(btn_width1, btn_height1);
 	mainBtnList.append(rxCtrlBtn);
 
-	if (m_serverMode == QSDR::ExternalDSP)
-		rxCtrlBtn->setEnabled(false);
+	//if (m_serverMode == QSDR::ExternalDSP)
+	//	rxCtrlBtn->setEnabled(false);
 
 	CHECKED_CONNECT(
 		rxCtrlBtn, 
@@ -845,14 +752,14 @@ void MainWindow::createMainBtnGroup() {
 	//	this, 
 	//	SLOT(widgetBtnClickedEvent()));
 
-	//	//if (m_settings->getCudaDevices() == 0)
+	//	//if (set->getCudaDevices() == 0)
 	//}
 	//else {
 
 	//	cudaBtn->setEnabled(false);
 	//}
 	
-	//if (m_settings->getCudaDevices() == 0) {
+	//if (set->getCudaDevices() == 0) {
 
 	//	cudaGraphBtn->setEnabled(false);
 
@@ -896,7 +803,7 @@ void MainWindow::createMainBtnGroup() {
 
 	quitBtn = new AeroButton("Quit", this);
 	quitBtn->setRoundness(10);
-	quitBtn->setFixedSize(btn_width1, btn_height1);
+	quitBtn->setFixedSize(btn_width3, btn_height1);
 
 	CHECKED_CONNECT(
 		quitBtn, 
@@ -904,29 +811,46 @@ void MainWindow::createMainBtnGroup() {
 		this, 
 		SLOT(closeMainWindow()));
 			
-	firstBtnLayout->addWidget(startBtn);
-	//firstBtnLayout->addWidget(ctrlDisplayBtn);
-	firstBtnLayout->addWidget(serverLogBtn);
-	firstBtnLayout->addWidget(rxCtrlBtn);
-	firstBtnLayout->addWidget(serverBtn);
-	firstBtnLayout->addWidget(hpsdrBtn);
-	firstBtnLayout->addWidget(chirpBtn);
-	firstBtnLayout->addWidget(wideBandBtn);
-	//firstBtnLayout->addWidget(openclBtn);
-	firstBtnLayout->addWidget(displayBtn);
-	firstBtnLayout->addWidget(nullBtn);
-	//firstBtnLayout->addStretch();
-	firstBtnLayout->addWidget(viewBtn);
-	firstBtnLayout->addWidget(modeBtn);
-	firstBtnLayout->addWidget(quitBtn);
+//	firstBtnLayout->addWidget(startBtn);
+//	//firstBtnLayout->addWidget(serverLogBtn);
+//	firstBtnLayout->addWidget(rxCtrlBtn);
+//	firstBtnLayout->addWidget(serverBtn);
+//	firstBtnLayout->addWidget(hpsdrBtn);
+//	firstBtnLayout->addWidget(chirpBtn);
+//	firstBtnLayout->addWidget(wideBandBtn);
+//	//firstBtnLayout->addWidget(openclBtn);
+//	firstBtnLayout->addWidget(displayBtn);
+//	firstBtnLayout->addWidget(nullBtn);
+//	//firstBtnLayout->addStretch();
+//	firstBtnLayout->addWidget(viewBtn);
+//	firstBtnLayout->addWidget(modeBtn);
+//	firstBtnLayout->addWidget(quitBtn);
 	
-	QHBoxLayout *secondBtnLayout = new QHBoxLayout(this);
-	secondBtnLayout->setSpacing(0);
-	secondBtnLayout->setMargin(0);
+//	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
+//	firstBtnLayout->setSpacing(0);
+//	firstBtnLayout->setMargin(0);
+//
+//	firstBtnLayout->addWidget(startBtn);
+//	//firstBtnLayout->addWidget(serverLogBtn);
+//	firstBtnLayout->addWidget(rxCtrlBtn);
+//	firstBtnLayout->addWidget(serverBtn);
+//	firstBtnLayout->addWidget(hpsdrBtn);
+//	firstBtnLayout->addWidget(chirpBtn);
+//	firstBtnLayout->addWidget(wideBandBtn);
+//	//firstBtnLayout->addWidget(openclBtn);
+//	firstBtnLayout->addWidget(displayBtn);
+//	firstBtnLayout->addWidget(nullBtn);
+//	//firstBtnLayout->addStretch();
+//	firstBtnLayout->addWidget(viewBtn);
+//	firstBtnLayout->addWidget(modeBtn);
+//	firstBtnLayout->addWidget(quitBtn);
 
-	QFontMetrics fm(m_smallFont);
-	int fontMaxWidth = fm.boundingRect("100 % ").width();
-	int vol = (int)(m_settings->getMainVolume(0) * 100);
+//	QHBoxLayout *secondBtnLayout = new QHBoxLayout;
+//	secondBtnLayout->setSpacing(0);
+//	secondBtnLayout->setMargin(0);
+
+	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("100 % ").width();
+	int vol = (int)(set->getMainVolume(0) * 100);
 
 	m_volumeSlider = new QSlider(Qt::Horizontal, this);
 	m_volumeSlider->setTickPosition(QSlider::NoTicks);
@@ -934,7 +858,7 @@ void MainWindow::createMainBtnGroup() {
 	m_volumeSlider->setSingleStep(1);
 	m_volumeSlider->setRange(0, 100);
 	m_volumeSlider->setValue(vol);
-	m_volumeSlider->setStyleSheet(m_settings->getVolSliderStyle());
+	m_volumeSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(
 		m_volumeSlider, 
@@ -944,24 +868,25 @@ void MainWindow::createMainBtnGroup() {
 
 	m_volumeLabel = new QLabel("Vol:", this);
     m_volumeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_volumeLabel->setStyleSheet(m_settings->getLabelStyle());
+	m_volumeLabel->setStyleSheet(set->getLabelStyle());
 
 	QString str = "%1 %";
 	m_volLevelLabel = new QLabel(str.arg(vol, 2, 10, QLatin1Char(' ')), this);
-	m_volLevelLabel->setFont(m_smallFont);
+	m_volLevelLabel->setFont(m_fonts.smallFont);
 	m_volLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_volLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_volLevelLabel->setStyleSheet(m_settings->getSliderLabelStyle());
+	m_volLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	
-	int gain = m_settings->getAGCGain(0);
+	int agcMaxGain = (int) set->getAGCMaximumGain_dB(0);
+	MAIN_DEBUG << "agcMaximumGain = " << agcMaxGain;
 	m_agcGainSlider = new QSlider(Qt::Horizontal, this);
 	m_agcGainSlider->setTickPosition(QSlider::NoTicks);
 	m_agcGainSlider->setFixedSize(100, 14);
 	m_agcGainSlider->setSingleStep(1);
 	m_agcGainSlider->setRange(-20, 120);
-	m_agcGainSlider->setValue(gain);
-	m_agcGainSlider->setStyleSheet(m_settings->getVolSliderStyle());
+	m_agcGainSlider->setValue(agcMaxGain);
+	m_agcGainSlider->setStyleSheet(set->getVolSliderStyle());
 	
 	CHECKED_CONNECT(
 		m_agcGainSlider, 
@@ -971,25 +896,25 @@ void MainWindow::createMainBtnGroup() {
 
 	m_agcGainLabel = new QLabel("", this);
     m_agcGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_agcGainLabel->setStyleSheet(m_settings->getLabelStyle());
-	if (m_serverMode == QSDR::DttSP)
-		m_agcGainLabel->setText("AGC-T:");
-	else if (m_serverMode == QSDR::QtDSP)
-		m_agcGainLabel->setText("AGC Gain:");
+	m_agcGainLabel->setStyleSheet(set->getLabelStyle());
+	if(m_agcMode == (AGCMode) agcOFF)
+		m_agcGainLabel->setText("AGC-F:");
+	else
+		m_agcGainLabel->setText("AGC-G:");
 
-	fontMaxWidth = fm.boundingRect("120 dB ").width();
-	str = "%1 dB";
-	m_agcGainLevelLabel = new QLabel(str.arg(gain, 2, 10, QLatin1Char(' ')), this);
-	m_agcGainLevelLabel->setFont(m_smallFont);
+	fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 120 dB").width();
+	str = " %1 dB";
+	m_agcGainLevelLabel = new QLabel(str.arg(agcMaxGain + 0, 2, 10, QLatin1Char(' ')), this);
+	m_agcGainLevelLabel->setFont(m_fonts.smallFont);
 	m_agcGainLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_agcGainLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_agcGainLevelLabel->setStyleSheet(m_settings->getSliderLabelStyle());
+	m_agcGainLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 	
 	avgBtn = new AeroButton("Pan Avg", this);
 	avgBtn->setRoundness(10);
 	avgBtn->setFixedSize(btn_width1, btn_height3);
 
-	if (m_settings->getSpectrumAveraging())
+	if (set->getSpectrumAveraging())
 		avgBtn->setBtnState(AeroButton::ON);
 	else
 		avgBtn->setBtnState(AeroButton::OFF);
@@ -1004,7 +929,7 @@ void MainWindow::createMainBtnGroup() {
 	gridBtn->setRoundness(10);
 	gridBtn->setFixedSize(btn_width1, btn_height3);
 
-	if (m_settings->getPanGridStatus())
+	if (set->getPanGridStatus())
 		gridBtn->setBtnState(AeroButton::ON);
 	else
 		gridBtn->setBtnState(AeroButton::OFF);
@@ -1025,22 +950,118 @@ void MainWindow::createMainBtnGroup() {
 		SIGNAL(clicked()), 
 		this, 
 		SLOT(peakHoldBtnClickedEvent()));
-	
-	lastFreqBtn = new AeroButton(" ", this);
-	lastFreqBtn->setRoundness(10);
-	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
-	lastFreqBtn->setBtnState(AeroButton::OFF);
+
+	moxBtn = new AeroButton("MOX", this);
+	moxBtn->setRoundness(10);
+	moxBtn->setFixedSize(btn_width1, btn_height3);
+	col = QColor(200, 100, 100);
+	moxBtn->setColor(col);
+	col = QColor(200, 200, 100);
+	moxBtn->setHighlight(col);
+	col = QColor(250, 100, 100);
+	moxBtn->setColorOn(col);
+	moxBtn->setBtnState(AeroButton::OFF);
+
+	tunBtn = new AeroButton("Tune", this);
+	tunBtn->setRoundness(10);
+	tunBtn->setFixedSize(btn_width1, btn_height3);
+	col = QColor(200, 100, 100);
+	tunBtn->setColor(col);
+	col = QColor(200, 200, 100);
+	tunBtn->setHighlight(col);
+	col = QColor(250, 100, 100);
+	tunBtn->setColorOn(col);
+	tunBtn->setBtnState(AeroButton::OFF);
+
+	if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
+
+		moxBtn->setEnabled(true);
+		tunBtn->setEnabled(true);
+	}
+	else {
+
+		moxBtn->setEnabled(false);
+		tunBtn->setEnabled(false);
+	}
+
+	alexBtn = new AeroButton("Alex Auto", this);
+	alexBtn->setRoundness(10);
+	alexBtn->setFixedSize(btn_width1, btn_height3);
+	alexBtn->setBtnState(AeroButton::ON);
+	if (set->getAlexPresence())
+		alexBtn->setEnabled(true);
+	else
+		alexBtn->setEnabled(false);
 
 	CHECKED_CONNECT(
-		lastFreqBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(getLastFrequency()));
-			
-	secondBtnLayout->addWidget(avgBtn);
-	secondBtnLayout->addWidget(peakHoldBtn);
-	secondBtnLayout->addWidget(gridBtn);
+		alexBtn,
+		SIGNAL(clicked()),
+		this,
+		SLOT(alexBtnClickedEvent()));
+
+	attenuatorBtn = new AeroButton("Attenuator", this);
+	attenuatorBtn->setRoundness(10);
+	attenuatorBtn->setFixedSize(btn_width1, btn_height1);
+
+	muteBtn = new AeroButton("Mute", this);
+	muteBtn->setRoundness(10);
+	muteBtn->setFixedSize(btn_width3, btn_height1);
+
+	CHECKED_CONNECT(
+		muteBtn,
+		SIGNAL(clicked()),
+		this,
+		SLOT(muteBtnClickedEvent()));
+
+
+//	lastFreqBtn = new AeroButton(" ", this);
+//	lastFreqBtn->setRoundness(10);
+//	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
+//	lastFreqBtn->setBtnState(AeroButton::OFF);
+//
+//	CHECKED_CONNECT(
+//		lastFreqBtn,
+//		SIGNAL(clicked()),
+//		this,
+//		SLOT(getLastFrequency()));
+
+	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
+	firstBtnLayout->setSpacing(0);
+	firstBtnLayout->setMargin(0);
+
+	firstBtnLayout->addWidget(startBtn);
+	//firstBtnLayout->addWidget(serverLogBtn);
+	firstBtnLayout->addWidget(rxCtrlBtn);
+	firstBtnLayout->addWidget(serverBtn);
+	firstBtnLayout->addWidget(hpsdrBtn);
+	firstBtnLayout->addWidget(chirpBtn);
+	firstBtnLayout->addWidget(wideBandBtn);
+	//firstBtnLayout->addWidget(openclBtn);
+	firstBtnLayout->addWidget(displayBtn);
+	firstBtnLayout->addWidget(nullBtn);
+	//firstBtnLayout->addStretch();
+	firstBtnLayout->addWidget(avgBtn);
+	firstBtnLayout->addWidget(peakHoldBtn);
+	firstBtnLayout->addWidget(gridBtn);
+	firstBtnLayout->addWidget(viewBtn);
+	firstBtnLayout->addWidget(modeBtn);
+	firstBtnLayout->addWidget(quitBtn);
+
+
+	QHBoxLayout *secondBtnLayout = new QHBoxLayout;
+	secondBtnLayout->setSpacing(0);
+	secondBtnLayout->setMargin(0);
+
+//	secondBtnLayout->addWidget(avgBtn);
+//	secondBtnLayout->addWidget(peakHoldBtn);
+//	secondBtnLayout->addWidget(gridBtn);
+//	secondBtnLayout->addStretch();
+	secondBtnLayout->addWidget(moxBtn);
+	secondBtnLayout->addWidget(tunBtn);
 	secondBtnLayout->addStretch();
+	secondBtnLayout->addWidget(alexBtn);
+	secondBtnLayout->addWidget(attenuatorBtn);
+	secondBtnLayout->addSpacing(5);
 	secondBtnLayout->addWidget(m_agcGainLabel);
 	secondBtnLayout->addWidget(m_agcGainSlider);
 	secondBtnLayout->addWidget(m_agcGainLevelLabel);
@@ -1048,10 +1069,11 @@ void MainWindow::createMainBtnGroup() {
 	secondBtnLayout->addWidget(m_volumeLabel);
 	secondBtnLayout->addWidget(m_volumeSlider);
 	secondBtnLayout->addWidget(m_volLevelLabel);
-	secondBtnLayout->addSpacing(10);
-	secondBtnLayout->addWidget(lastFreqBtn);
+	secondBtnLayout->addSpacing(2);
+	secondBtnLayout->addWidget(muteBtn);
+	//secondBtnLayout->addWidget(lastFreqBtn);
 	
-	QVBoxLayout *btnLayout = new QVBoxLayout(this);
+	QVBoxLayout *btnLayout = new QVBoxLayout;
 	btnLayout->setSpacing(2);
 	btnLayout->setMargin(0);
 	btnLayout->addLayout(firstBtnLayout);
@@ -1069,56 +1091,45 @@ void MainWindow::createMainBtnGroup() {
 */
 void MainWindow::createModeMenu() {
 
-	modeMenu->setStyleSheet(m_settings->getMenuStyle());
+	modeMenu = new QMenu(this);
+	modeMenu->setStyleSheet(set->getMenuStyle());
     modeBtn->setMenu(modeMenu);
 
-    m_qtdspModeAction = modeMenu->addAction(tr("QtDSP"));
-	m_dttspModeAction = modeMenu->addAction(tr("DttSP"));
-    m_externalDSPModeAction = modeMenu->addAction(tr("extDSP"));
-    m_chirpWSPRAction = modeMenu->addAction(tr("ChirpWSPR"));
+	modeActionGroup = new QActionGroup(this);
+    modeActionGroup->setExclusive(true);
 
-    m_qtdspModeAction->setCheckable(false);
-	m_dttspModeAction->setCheckable(true);
-    m_externalDSPModeAction->setCheckable(false);
-    m_chirpWSPRAction->setCheckable(false);
+//    noServerModeAction = modeActionGroup->addAction(tr("QtDSP"));
+//    noServerModeAction->setCheckable(true);
+//    noServerModeAction->setChecked(m_serverMode == QSDR::QtDSP);
+
+    sdrModeAction = modeActionGroup->addAction(tr("SDR"));
+    sdrModeAction->setCheckable(true);
+    sdrModeAction->setChecked(m_serverMode == QSDR::SDRMode);
+
+    chirpWSPRAction = modeActionGroup->addAction(tr("ChirpWSPR"));
+    chirpWSPRAction->setCheckable(false);
+    chirpWSPRAction->setChecked(m_serverMode == QSDR::ChirpWSPR);
 	
-	setServerMode(m_serverMode);
+    modeMenu->addActions(modeActionGroup->actions());
 
-    if (m_qtdspModeAction->isCheckable()) {
+    if (sdrModeAction->isCheckable()) {
 		
 		CHECKED_CONNECT(
-			m_qtdspModeAction, 
+			sdrModeAction,
 			SIGNAL(triggered(bool)), 
 			this, 
-			SLOT(setQtDSPMode()));
+			SLOT(setSDRMode(bool)));
 	}
 
-	if (m_dttspModeAction->isCheckable()) {
+	if (chirpWSPRAction->isCheckable()) {
 		
 		CHECKED_CONNECT(
-			m_dttspModeAction, 
+			chirpWSPRAction,
 			SIGNAL(triggered(bool)), 
 			this, 
-			SLOT(setDttSPMode()));
+			SLOT(setChirpWSPRMode(bool)));
 	}
 
-	if (m_externalDSPModeAction->isCheckable()) {
-
-	    CHECKED_CONNECT(
-			m_externalDSPModeAction, 
-			SIGNAL(triggered(bool)), 
-			this, 
-			SLOT(setExternalDSPMode()));
-	}
-
-	if (m_chirpWSPRAction->isCheckable()) {
-		
-		CHECKED_CONNECT(
-			m_chirpWSPRAction, 
-			SIGNAL(triggered(bool)), 
-			this, 
-			SLOT(setChirpWSPRMode()));
-	}
 }
  
 /*!
@@ -1126,10 +1137,96 @@ void MainWindow::createModeMenu() {
 */
 void MainWindow::createViewMenu() {
 
-	viewMenu->setStyleSheet(m_settings->getMenuStyle());
+	viewMenu = new QMenu(this);
+	viewMenu->setStyleSheet(set->getMenuStyle());
     viewBtn->setMenu(viewMenu);
 }
 
+void MainWindow::createAttenuatorMenu() {
+
+	attenuatorMenu = new QMenu(this);
+	attenuatorMenu->setStyleSheet(set->getMenuStyle());
+	attenuatorBtn->setMenu(attenuatorMenu);
+
+	mercuryAttn_0dBAction = attenuatorMenu->addAction(tr("Mercury Attn 0 dB"));
+	mercuryAttn_0dBAction->setCheckable(true);
+	mercuryAttnActionList.append(mercuryAttn_0dBAction);
+
+	mercuryAttn_20dBAction = attenuatorMenu->addAction(tr("Mercury Attn -20 dB"));
+	mercuryAttn_20dBAction->setCheckable(true);
+	mercuryAttnActionList.append(mercuryAttn_20dBAction);
+
+	attenuatorMenu->addSeparator();
+	alexAttn_0dBAction = attenuatorMenu->addAction(tr("Alex Attn 0 dB"));
+	alexAttn_0dBAction->setCheckable(true);
+	alexAttnActionList.append(alexAttn_0dBAction);
+
+	alexAttn_10dBAction = attenuatorMenu->addAction(tr("Alex Attn -10 dB"));
+	alexAttn_10dBAction->setCheckable(true);
+	alexAttnActionList.append(alexAttn_10dBAction);
+
+	alexAttn_20dBAction = attenuatorMenu->addAction(tr("Alex Attn -20 dB"));
+	alexAttn_20dBAction->setCheckable(true);
+	alexAttnActionList.append(alexAttn_20dBAction);
+
+	alexAttn_30dBAction = attenuatorMenu->addAction(tr("Alex Attn -30 dB"));
+	alexAttn_30dBAction->setCheckable(true);
+	alexAttnActionList.append(alexAttn_30dBAction);
+
+    if (mercuryAttn_0dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			mercuryAttn_0dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+
+    if (mercuryAttn_20dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			mercuryAttn_20dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+
+    if (alexAttn_0dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			alexAttn_0dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+
+    if (alexAttn_10dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			alexAttn_10dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+
+    if (alexAttn_20dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			alexAttn_20dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+
+    if (alexAttn_30dBAction->isCheckable()) {
+
+		CHECKED_CONNECT(
+			alexAttn_30dBAction,
+			SIGNAL(triggered(bool)),
+			this,
+			SLOT(setAttenuator()));
+	}
+}
 //*******************************************************************************
  
 /*!
@@ -1145,16 +1242,15 @@ void MainWindow::masterSwitchChanged(
 	
 	if (power) {
 
-		if (m_dataEngine->initDataEngine()) {	// start hpsdr hardware interface
+		if (m_dataEngine->initDataEngine()) { // start data engine
 		
-			if (m_serverMode == QSDR::ExternalDSP && !m_hpsdrServer->startServer())
-				m_hpsdrServer->stopServer();
-			
+			//if (m_serverMode == QSDR::ExternalDSP && !m_hpsdrServer->startServer())
+			//	m_hpsdrServer->stopServer();
 			return;
 		}
 		else {
 
-			m_settings->setMainPower(this, false);
+			set->setMainPower(this, false);
 			startButtonClickedEvent();
 			return;
 		}
@@ -1163,14 +1259,12 @@ void MainWindow::masterSwitchChanged(
 
 		m_dataEngine->stop();
 
-		if (m_serverMode == QSDR::ExternalDSP)
-			m_hpsdrServer->stopServer();
-
-		m_settings->setMainPower(this, false);
+		//if (m_serverMode == QSDR::ExternalDSP)
+		//	m_hpsdrServer->stopServer();
+		set->setMainPower(this, false);
 	}
 }
 
- 
 /*!
 	\brief set the system state according to
 	- \a QSDR::_ServerMode,
@@ -1186,17 +1280,25 @@ void MainWindow::systemStateChanged(
 ) {
 	Q_UNUSED (sender)
 	Q_UNUSED (err)
-	Q_UNUSED (hwmode)
-	//Q_UNUSED (state)
 
-	bool change = false;
+	//if (sender == this) return;
 
-	if (m_serverMode != mode) {
-		
+	if (m_hwInterface != hwmode)
+		m_hwInterface = hwmode;
+
+	if (m_serverMode != mode)
 		m_serverMode = mode;
-		change = true;
-	}
 
+	if (m_dataEngineState != state)
+		m_dataEngineState = state;
+
+	//if (!modeBtn->isEnabled() && m_dataEngineState == QSDR::DataEngineDown)
+	//	modeBtn->setEnabled(true);
+	modeBtn->setEnabled(m_dataEngineState == QSDR::DataEngineDown);
+	moxBtn->setEnabled(m_hwInterface == QSDR::Hermes);
+	tunBtn->setEnabled(m_hwInterface == QSDR::Hermes);
+
+	/*
 	if (state == QSDR::DataEngineUp) {
 
 		m_dataEngineState = QSDR::DataEngineUp;
@@ -1207,16 +1309,26 @@ void MainWindow::systemStateChanged(
 
 		m_dataEngineState = QSDR::DataEngineDown;
 		modeBtn->setEnabled(true);
-		setReceiver(0);
+		//setCurrentReceiver(0);
 	}
-
-	if (!change) return;
+	*/
 }
- 
+
+void MainWindow::setSystemState(
+			QSDR::_Error err,
+			QSDR::_HWInterfaceMode hwmode,
+			QSDR::_ServerMode mode,
+			QSDR::_DataEngineState state)
+{
+	m_dataEngine->io.networkIOMutex.lock();
+	set->setSystemState(this, err, hwmode, mode, state);
+	m_dataEngine->io.networkIOMutex.unlock();
+}
+
 
 void MainWindow::setSpectrumBuffer(int rx, const float *buffer) {
 
-	if ((m_serverMode == QSDR::DttSP || m_serverMode == QSDR::QtDSP) && !rxWidgetList.empty())
+	if (m_serverMode == QSDR::SDRMode && !rxWidgetList.empty())
 		rxWidgetList.at(rx)->setSpectrumBuffer(buffer);
 	//else if ((m_serverMode == QSDR::ChirpWSPR || m_serverMode == QSDR::ChirpWSPRFile) && m_distDisplay != 0)
 	//	m_distDisplay->setSpectrumBuffer(buffer);
@@ -1227,7 +1339,7 @@ void MainWindow::setSpectrumBuffer(int rx, const float *buffer) {
 */
 void MainWindow::closeMainWindow() {
 
-	if (m_settings->mainPower())
+	if (set->getMainPower())
 		startButtonClickedEvent();
 	close();
 }
@@ -1293,30 +1405,18 @@ void MainWindow::setFullScreen() {
 		this->showFullScreen();
 }
  
+void MainWindow::showRadioPopup(bool value) {
+
+	Q_UNUSED (value)
+
+	m_radioPopupWidget->showPopupWidget(this, QCursor::pos());
+}
+
 /*!
 	\brief updates entries from the ini-file.
 */
 void MainWindow::updateFromSettings() {
 
-}
- 
-/*!
-	\brief implements the Log button functionality which opens/closes the logging widget.
-*/
-void MainWindow::messagesBtnClickedEvent() {
-
-	if (m_msgBrowser->isVisible()) {
-	
-		m_msgBrowser->setVisible(false);
-		m_contentLayout->setRowMinimumHeight(3, 0);
-		serverLogBtn->setBtnState(AeroButton::OFF);
-	} 
-	else {
-
-		m_msgBrowser->setVisible(true);
-		m_contentLayout->setRowMinimumHeight(3, 150);
-		serverLogBtn->setBtnState(AeroButton::ON);
-	}
 }
  
 /*!
@@ -1365,7 +1465,6 @@ void MainWindow::widgetBtnClickedEvent() {
 	}
 }
 
- 
 /*!
 	\brief implements the Start/Stop functionality of the Start/Stop button.
 */
@@ -1381,7 +1480,7 @@ void MainWindow::startButtonClickedEvent() {
 		col = QColor(250, 0, 0);
 		startBtn->setHighlight(col);
 		startBtn->setText("Stop");
-		m_settings->setMainPower(this, true);
+		set->setMainPower(this, true);
 	}
 	else if (startBtn->btnState() == AeroButton::ON) {
 
@@ -1390,12 +1489,21 @@ void MainWindow::startButtonClickedEvent() {
 		QColor col = QColor(0x91, 0xeb, 0xff);
 		startBtn->setHighlight(col);
 		startBtn->setText("Start");
-		m_settings->saveSettings();
-		m_settings->setMainPower(this, false);
+		set->saveSettings();
+		set->setMainPower(this, false);
+
+		if (muteBtn->btnState() == AeroButton::ON) {
+
+			muteBtn->setBtnState(AeroButton::OFF);
+			muteBtn->update();
+
+			m_volumeSlider->setEnabled(true);
+			for (int i = 0; i < set->getNumberOfReceivers(); i++)
+				set->setMainVolume(this, i, rxVolumeList.at(i));
+		}
 	}
 }
 
- 
 /*!
 	\brief implements the Show/Hide functionality of the wide band data widget.
 */
@@ -1404,16 +1512,16 @@ void MainWindow::wideBandBtnClickedEvent() {
 	if (wideBandBtn->btnState() == AeroButton::OFF) {
 
 		wideBandBtn->setBtnState(AeroButton::ON);
-		m_settings->setWideBandStatus(true);
+		set->setWideBandStatus(true);
 		widebandDock->show();
-		showMessage("[server]: wide band data on.");
+		//showMessage("[server]: wide band data on.");
 	}
 	else if (wideBandBtn->btnState() == AeroButton::ON) {
 
 		wideBandBtn->setBtnState(AeroButton::OFF);
-		m_settings->setWideBandStatus(false);
+		set->setWideBandStatus(false);
 		widebandDock->hide();
-		showMessage("[server]: wide band data off.");
+		//showMessage("[server]: wide band data off.");
 	}
 }
 
@@ -1435,13 +1543,13 @@ void MainWindow::avgBtnClickedEvent() {
 	if (avgBtn->btnState() == AeroButton::OFF) {
 
 		avgBtn->setBtnState(AeroButton::ON);
-		m_settings->setSpectrumAveraging(true);
+		set->setSpectrumAveraging(true);
 		//showMessage("[server]: wide band data on.");
 	}
 	else if (avgBtn->btnState() == AeroButton::ON) {
 
 		avgBtn->setBtnState(AeroButton::OFF);
-		m_settings->setSpectrumAveraging(false);
+		set->setSpectrumAveraging(false);
 		//showMessage("[server]: wide band data off.");
 	}
 }
@@ -1454,12 +1562,12 @@ void MainWindow::gridBtnClickedEvent() {
 	if (gridBtn->btnState() == AeroButton::OFF) {
 
 		gridBtn->setBtnState(AeroButton::ON);
-		m_settings->setPanGrid(true);
+		set->setPanGrid(true);
 	}
 	else if (gridBtn->btnState() == AeroButton::ON) {
 
 		gridBtn->setBtnState(AeroButton::OFF);
-		m_settings->setPanGrid(false);
+		set->setPanGrid(false);
 	}
 }
 
@@ -1471,12 +1579,12 @@ void MainWindow::peakHoldBtnClickedEvent() {
 	if (peakHoldBtn->btnState() == AeroButton::OFF) {
 
 		peakHoldBtn->setBtnState(AeroButton::ON);
-		m_settings->setPeakHold(true);
+		set->setPeakHold(true);
 	}
 	else if (peakHoldBtn->btnState() == AeroButton::ON) {
 
 		peakHoldBtn->setBtnState(AeroButton::OFF);
-		m_settings->setPeakHold(false);
+		set->setPeakHold(false);
 	}
 }
 
@@ -1488,22 +1596,87 @@ void MainWindow::setPeakHoldStatus(bool) {
 	peakHoldBtn->setBtnState(AeroButton::OFF);
 }
 
+void MainWindow::alexBtnClickedEvent() {
+
+	if (alexBtn->btnState() == AeroButton::OFF) {
+
+		alexBtn->setBtnState(AeroButton::ON);
+		alexBtn->setText("Alex Auto");
+
+		//m_alexConfiguration[0].value = false;
+		m_alexConfig &= 0xFFFE;
+
+		set->setAlexToManual(this, false);
+	}
+	else if (alexBtn->btnState() == AeroButton::ON) {
+
+		alexBtn->setBtnState(AeroButton::OFF);
+		alexBtn->setText("Alex Manual");
+
+		//m_alexConfiguration[0].value = true;
+		m_alexConfig |= 0x01;
+
+		set->setAlexToManual(this, true);
+	}
+	//set->setAlexConfiguration(this, m_alexConfiguration);
+}
+
+void MainWindow::alexStateChanged(HamBand band, const QList<int> &states) {
+
+        Q_UNUSED(band)
+
+	m_currentHamBand = set->getCurrentHamBand(0);
+	m_alexStates[m_currentHamBand] = states.at(m_currentHamBand);
+	m_alexAttnState = 0x03 & (m_alexStates[m_currentHamBand] >> 7);
+
+	setAttenuatorButton();
+}
+
+void MainWindow::alexConfigurationChanged(quint16 conf) {
+
+	if (conf & 0x01) {
+
+		alexBtn->setBtnState(AeroButton::OFF);
+		alexBtn->setText("Alex Manual");
+	}
+	else {
+
+		alexBtn->setBtnState(AeroButton::ON);
+		alexBtn->setText("Alex Auto");
+	}
+
+	alexBtn->update();
+}
+
+void MainWindow::alexPresenceChanged(bool value) {
+
+	if (value) {
+
+		//if (m_alexConfiguration[0].value)
+		if (m_alexConfig & 0x01)
+			alexBtn->setText(tr("Alex Manual"));
+		else
+			alexBtn->setText(tr("Alex Auto"));
+	}
+	else
+		alexBtn->setText(tr("Alex"));
+
+	alexBtn->setEnabled(value);
+
+	alexAttn_0dBAction->setCheckable(value);
+	alexAttn_10dBAction->setCheckable(value);
+	alexAttn_20dBAction->setCheckable(value);
+	alexAttn_30dBAction->setCheckable(value);
+
+	alexBtn->update();
+}
+
 /*!
 	\brief tune to last frequency.
 */
 void MainWindow::getLastFrequency() {
 }
 
-/*!
-	\brief shows a system message in the Log widget.
-*/
-void MainWindow::showMessage(QString message) {
-
-	m_msgBrowser->appendPlainText(message);
-	//statusBar()->showMessage(message);
-}
-
- 
 /*!
 	\brief updates the main window title.
 */
@@ -1512,7 +1685,7 @@ void MainWindow::updateTitle() {
 	setWindowTitle(
 		QApplication::applicationName() + "  " + \
 		QApplication::applicationVersion() + "         " + \
-		m_settings->callsign());
+		set->getCallsign());
 }
  
 /*!
@@ -1524,7 +1697,6 @@ void MainWindow::showWidgetEvent(
 	if (!sender) return;
 }
 
- 
 /*!
 	\brief hide widget event.
 */
@@ -1535,15 +1707,17 @@ void MainWindow::closeWidgetEvent(
 	if (!sender) return;
 }
  
-void MainWindow::setReceiver(int rx) {
+void MainWindow::setCurrentReceiver(QObject *sender, int rx) {
 
-	m_settings->setCurrentReceiver(rx);
-	m_dataEngine->io.currentReceiver = rx;
-	m_volumeSlider->setValue((int)(m_settings->getMainVolume(rx) * 100));
-	m_agcGainSlider->setValue(m_settings->getAGCGain(rx));
+	Q_UNUSED(sender)
+
+	MAIN_DEBUG << "setCurrentReceiver: " << rx;
+	//set->setCurrentReceiver(this, rx);
+	//m_dataEngine->io.currentReceiver = rx;
+	m_volumeSlider->setValue((int)(set->getMainVolume(rx) * 100));
+	m_agcGainSlider->setValue(set->getAGCMaximumGain_dB(rx));
 }
 
- 
 /*!
 	\brief enable the receiver buttons according to the actual number of available receivers.
 */
@@ -1568,7 +1742,6 @@ void MainWindow::setNumberOfReceivers(
 	}
 }
 
- 
 /*!
 	\brief set the main volume.
 */
@@ -1579,145 +1752,338 @@ void MainWindow::setMainVolume(int value) {
 
 	QString str = "%1 %";
 	m_volLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-	m_settings->setMainVolume(this, m_settings->getCurrentReceiver(), value / 100.0f);
+
+	set->setMainVolume(this, set->getCurrentReceiver(), value / 100.0f);
+}
+
+/*!
+	\brief mute Volume.
+*/
+void MainWindow::muteBtnClickedEvent() {
+
+	int rcvr = set->getNumberOfReceivers();
+	if (muteBtn->btnState() == AeroButton::OFF) {
+
+		muteBtn->setBtnState(AeroButton::ON);
+		m_volumeSlider->setEnabled(false);
+
+		for (int i = 0; i < rcvr; i++) {
+
+			rxVolumeList[i] = set->getMainVolume(i);
+			set->setMainVolume(this, i, 0.0f);
+		}
+	}
+	else if (muteBtn->btnState() == AeroButton::ON) {
+
+		muteBtn->setBtnState(AeroButton::OFF);
+		m_volumeSlider->setEnabled(true);
+
+		for (int i = 0; i < rcvr; i++) {
+
+			set->setMainVolume(this, i, rxVolumeList.at(i));
+		}
+	}
+}
+
+void MainWindow::setTxAllowed(QObject *sender, bool value) {
+
+	Q_UNUSED(sender)
+
+	if (!value) {
+
+		moxBtn->setEnabled(false);
+		tunBtn->setEnabled(false);
+	}
+	else if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
+
+		moxBtn->setEnabled(true);
+		tunBtn->setEnabled(true);
+	}
+}
+
+void MainWindow::setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang) {
+
+	Q_UNUSED(sender)
+	Q_UNUSED(hang)
+
+	m_agcMode = mode;
+
+	if(m_agcMode == (AGCMode) agcOFF) {
+
+		int gain = (int) set->getAGCFixedGain_dB(rx);
+		m_agcGainLabel->setText("AGC-F:");
+		m_agcGainSlider->blockSignals(true);
+		m_agcGainSlider->setValue(gain);
+		m_agcGainSlider->blockSignals(false);
+
+		QString str = " %1 dB";
+		m_agcGainLevelLabel->setText(str.arg(gain, 2, 10, QLatin1Char(' ')));
+	}
+	else {
+
+		int gain = (int) set->getAGCMaximumGain_dB(rx);
+		m_agcGainLabel->setText("AGC-G:");
+		m_agcGainSlider->blockSignals(true);
+		m_agcGainSlider->setValue(gain);
+		m_agcGainSlider->blockSignals(false);
+
+		QString str = " %1 dB";
+		m_agcGainLevelLabel->setText(str.arg(gain, 2, 10, QLatin1Char(' ')));
+	}
 }
 
 void MainWindow::setAGCGain(int value) {
 
-	if (value < -20 ) value = -20;
-	if (value > 120 ) value = 120;
+	QString str = " %1 dB";
+	m_agcGainLevelLabel->setText(str.arg(value + 0, 2, 10, QLatin1Char(' ')));
 
-	QString str = "%1 dB";
-	m_agcGainLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-	m_settings->setAGCGain(this, m_settings->getCurrentReceiver(), value);
+	int rx = set->getCurrentReceiver();
+	if (m_agcMode == (AGCMode) agcOFF)
+		set->setAGCFixedGain_dB(this, rx, (qreal) value);
+	else
+		set->setAGCMaximumGain_dB(this, rx, (qreal) value);
 }
- 
-/*!
-	\brief set \a QSDR::_ServerMode to \a QSDR::InternalDSP.
-*/
-void MainWindow::setInternalDSPMode() {
 
-	/*setServerMode(QSDR::InternalDSP);
+void MainWindow::setAGCGain(QObject *sender, int rx, qreal value) {
 
-	if (m_oldSampleRate == 48000 || m_oldSampleRate == 96000 || m_oldSampleRate == 192000)
-		m_settings->setSampleRate(this, m_oldSampleRate);
+	Q_UNUSED(sender)
+	Q_UNUSED(rx)
+
+	m_agcGainSlider->blockSignals(true);
+	m_agcGainSlider->setValue((int) value);
+
+	QString str = " %1 dB";
+	m_agcGainLevelLabel->setText(str.arg((int) value + 0, 2, 10, QLatin1Char(' ')));
+
+	m_agcGainSlider->blockSignals(false);
+}
+
+void MainWindow::setSDRMode(bool) {
+
+	MAIN_DEBUG << "setSDRMode";
+	setServerMode(QSDR::SDRMode);
+
+	//if (m_oldSampleRate == 48000 || m_oldSampleRate == 96000 || m_oldSampleRate == 192000)
+	//	set->setSampleRate(this, m_oldSampleRate);
 	
-	showMessage("[server]: switched to internal DSP mode.");*/
+	//showMessage("[server]: switched to SDR mode.");
 }
 
-void MainWindow::setDttSPMode() {
-
-	m_settings->setSpectrumSize(4096);
-	m_agcGainLabel->setText("AGC-T:");
-	setServerMode(QSDR::DttSP);
-
-	if (m_oldSampleRate == 48000 || m_oldSampleRate == 96000 || m_oldSampleRate == 192000)
-		m_settings->setSampleRate(this, m_oldSampleRate);
-	
-	showMessage("[server]: switched to DttSP mode.");
-}
-
-void MainWindow::setQtDSPMode() {
-
-	m_settings->setSpectrumSize(2048);
-	m_agcGainLabel->setText("AGC Gain:");
-	setServerMode(QSDR::QtDSP);
-
-	if (m_oldSampleRate == 48000 || m_oldSampleRate == 96000 || m_oldSampleRate == 192000)
-		m_settings->setSampleRate(this, m_oldSampleRate);
-	
-	showMessage("[server]: switched to internal QtDSP mode.");
-}
-
-/*!
-	\brief set \a QSDR::_ServerMode to \a QSDR::ExternalDSP.
-*/
-void MainWindow::setExternalDSPMode() {
-
-	//setServerMode(QSDR::ExternalDSP);
-	
-	//showMessage("[server]: switched to external DSP mode.");
-}
- 
 /*!
 	\brief set \a QSDR::_ServerMode to \a QSDR::ChirpWSPR.
 */
-void MainWindow::setChirpWSPRMode() {
+void MainWindow::setChirpWSPRMode(bool value) {
+
+        Q_UNUSED(value)
 
 	setServerMode(QSDR::ChirpWSPR);
 
-	m_oldSampleRate = m_settings->getSampleRate();
+	m_oldSampleRate = set->getSampleRate();
 	setNumberOfReceivers(this, 1);
-	m_settings->setReceivers(this, 1);
-	m_settings->setSampleRate(this, 48000);
+	set->setCurrentReceiver(this, 1);
+	set->setSampleRate(this, 48000);
 	//m_dataEngine->createChirpDataProcessor();
 
-	showMessage("[server]: switched to chirp decode mode.");
+	MAIN_DEBUG << "switched to chirp decode mode";
 }
  
-/*!
-	\brief set \a QSDR::_ServerMode to \a QSDR::CudaDSP.
-*/
-void MainWindow::setCudaDSPMode() {
+void MainWindow::setAttenuator() {
 
-	//setServerMode(QSDR::CudaDSP);
-	
-	//showMessage("[server]: switched to Cuda DSP mode.");
+	QAction *action = qobject_cast<QAction *>(sender());
+
+	int mercuryPos = mercuryAttnActionList.indexOf(action);
+	int alexPos = alexAttnActionList.indexOf(action);
+
+	if (mercuryPos > -1) {
+
+		foreach(QAction *act, mercuryAttnActionList) {
+
+			act->setChecked(false);
+		}
+		mercuryAttnActionList.at(mercuryPos)->setChecked(true);
+
+		switch (mercuryPos) {
+
+			case 0:
+
+				//attenuatorBtn->setText(tr("Attn 0 dB"));
+				//attenuatorBtn->setBtnState(AeroButton::OFF);
+
+				set->setMercuryAttenuator(this, 1);
+				break;
+
+			case 1:
+
+				//attenuatorBtn->setText(tr("Attn -20 dB"));
+				//attenuatorBtn->setBtnState(AeroButton::ON);
+
+				set->setMercuryAttenuator(this, 0);
+				break;
+		}
+	}
+
+	if (alexPos > -1) {
+
+		foreach(QAction *act, alexAttnActionList) {
+			act->setChecked(false);
+		}
+		alexAttnActionList.at(alexPos)->setChecked(true);
+
+		int state = 0;
+		state &= 0x7F; // 0 0 1 1 1 1 1 1 1
+		state |= alexPos << 7;
+
+		set->setAlexState(this, state);
+	}
+
+	if (mercuryAttnActionList.at(0)->isChecked()) {
+
+		if (alexAttnActionList.at(0)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn 0 dB"));
+			attenuatorBtn->setBtnState(AeroButton::OFF);
+		}
+		else if (alexAttnActionList.at(1)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -10 dB"));
+			attenuatorBtn->setBtnState(AeroButton::ON);
+		}
+		else if (alexAttnActionList.at(2)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -20 dB"));
+			attenuatorBtn->setBtnState(AeroButton::ON);
+		}
+		else if (alexAttnActionList.at(3)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -30 dB"));
+			attenuatorBtn->setBtnState(AeroButton::ON);
+		}
+	}
+	else if (mercuryAttnActionList.at(1)->isChecked()) {
+
+		if (alexAttnActionList.at(0)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -20 dB"));
+		}
+		else if (alexAttnActionList.at(1)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -30 dB"));
+		}
+		else if (alexAttnActionList.at(2)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -40 dB"));
+		}
+		else if (alexAttnActionList.at(3)->isChecked()) {
+
+			attenuatorBtn->setText(tr("Attn -50 dB"));
+		}
+		attenuatorBtn->setBtnState(AeroButton::ON);
+	}
 }
- 
+
+void MainWindow::setAttenuatorButton() {
+
+	foreach(QAction *act, mercuryAttnActionList) act->setChecked(false);
+	foreach(QAction *act, alexAttnActionList) act->setChecked(false);
+
+	if (m_mercuryAttnState == 1) {
+
+		mercuryAttnActionList.at(0)->setChecked(true);
+
+		switch (m_alexAttnState) {
+
+			case 0:
+
+				attenuatorBtn->setText(tr("Attn 0 dB"));
+				attenuatorBtn->setBtnState(AeroButton::OFF);
+				break;
+
+			case 1:
+
+				attenuatorBtn->setText(tr("Attn -10 dB"));
+				attenuatorBtn->setBtnState(AeroButton::ON);
+				break;
+
+			case 2:
+
+				attenuatorBtn->setText(tr("Attn -20 dB"));
+				attenuatorBtn->setBtnState(AeroButton::ON);
+				break;
+
+			case 3:
+
+				attenuatorBtn->setText(tr("Attn -30 dB"));
+				attenuatorBtn->setBtnState(AeroButton::ON);
+				break;
+		}
+	}
+	else if (m_mercuryAttnState == 0) {
+
+		mercuryAttnActionList.at(1)->setChecked(true);
+		switch (m_alexAttnState) {
+
+			case 0:
+
+				attenuatorBtn->setText(tr("Attn -20 dB"));
+				break;
+
+			case 1:
+
+				attenuatorBtn->setText(tr("Attn -30 dB"));
+				break;
+
+			case 2:
+
+				attenuatorBtn->setText(tr("Attn -40 dB"));
+				break;
+
+			case 3:
+
+				attenuatorBtn->setText(tr("Attn -50 dB"));
+				break;
+		}
+		attenuatorBtn->setBtnState(AeroButton::ON);
+	}
+
+	if (m_alexAttnState > -1)
+		alexAttnActionList.at(m_alexAttnState)->setChecked(true);
+}
+
+void MainWindow::mercuryAttenuatorChanged(QObject *sender, HamBand band, int value) {
+
+	Q_UNUSED(sender)
+        Q_UNUSED(value)
+
+	m_currentHamBand = set->getCurrentHamBand(0);
+	m_mercuryAttn[m_currentHamBand] = value;
+	m_mercuryAttnState = m_mercuryAttn.at(m_currentHamBand);
+
+	setAttenuatorButton();
+}
+
 /*!
 	\brief set \a QSDR::_ServerMode to \a mode.
 */
 void MainWindow::setServerMode(
 		QSDR::_ServerMode mode			/*!<[in] server mode. */
 ) {
-	//rxCtrlBtn->setEnabled(QSDR::InternalDSP == mode);
-	//wideBandBtn->setEnabled(QSDR::InternalDSP == mode);
-	wideBandBtn->setEnabled(QSDR::DttSP == mode || QSDR::QtDSP == mode);
-
+	/*
 	if (mode != QSDR::ChirpWSPR && chirpBtn->btnState() == AeroButton::ON)
 		m_chirpWidget->hide();
 
 	if (mode == QSDR::ChirpWSPR && wideBandBtn->btnState() == AeroButton::ON) {
 
-		//m_settings->setWideBandStatus(false);
+		//set->setWideBandStatus(false);
 		wideBandBtn->setBtnState(AeroButton::OFF);
+		wideBandBtn->setEnabled(false);
 	}
 
 	chirpBtn->setEnabled(QSDR::ChirpWSPR == mode);
+	*/
 
-	m_qtdspModeAction->setChecked(QSDR::QtDSP == mode);
-	m_dttspModeAction->setChecked(QSDR::DttSP == mode);
-    //m_internalDSPModeAction->setChecked(QSDR::InternalDSP == mode);
-    m_externalDSPModeAction->setChecked(QSDR::ExternalDSP == mode);
-    //m_chirpWSPRAction->setChecked(QSDR::ChirpWSPR == mode);
-	
-	m_settings->setSystemState(
-		this,
-		QSDR::NoError,
-		m_settings->getHWInterface(),
-		mode,
-		m_settings->getDataEngineState());
+	setSystemState(QSDR::NoError, m_hwInterface, mode, m_dataEngineState);
 }
 
-//void MainWindow::setPennyPresence(bool value) {
-//
-//	pennyBtn->setEnabled(value);
-//	if (value)
-//		pennyBtn->show();
-//	else
-//		pennyBtn->hide();
-//}
-//
-//void MainWindow::setAlexPresence(bool value) {
-//
-//	alexBtn->setEnabled(value);
-//	if (value)
-//		alexBtn->show();
-//	else
-//		alexBtn->hide();
-//}
- 
 /*!
 	\brief get all network interfaces and IP addresses.
 */
@@ -1727,8 +2093,8 @@ void MainWindow::getNetworkInterfaces() {
 	QString localIP = QHostAddress(QHostAddress::LocalHost).toString();
 
 	// ip addresses from ini file
-	QString serverIpAddress = m_settings->getServerAddr();
-	QString hpsdrDeviceLocalIpAddress = m_settings->getHPSDRDeviceLocalAddr();
+	QString serverIpAddress = set->getServerAddr();
+	QString hpsdrDeviceLocalIpAddress = set->getHPSDRDeviceLocalAddr();
 
 	MAIN_DEBUG << "server ip from ini-file: " << serverIpAddress;
 	MAIN_DEBUG << "HPSDR device local ip from ini-file: " << hpsdrDeviceLocalIpAddress;
@@ -1754,11 +2120,11 @@ void MainWindow::getNetworkInterfaces() {
 		//		ipAddresses << entry.ip();
 		//		nics << ni;
 		//		MAIN_DEBUG << "  -> ip address: " << qPrintable(entry.ip().toString());
-		//		m_settings->m_ipAddressesList.append(entry.ip());
-		//		m_settings->m_networkInterfaces.append(ni);
+		//		set->m_ipAddressesList.append(entry.ip());
+		//		set->m_networkInterfaces.append(ni);
 		//
-		//		m_settings->addServerNetworkInterface(ni.humanReadableName(), entry.ip().toString());
-		//		m_settings->addHPSDRDeviceNIC(ni.humanReadableName(), entry.ip().toString());
+		//		set->addServerNetworkInterface(ni.humanReadableName(), entry.ip().toString());
+		//		set->addHPSDRDeviceNIC(ni.humanReadableName(), entry.ip().toString());
 		//	}
 		//}
 
@@ -1776,16 +2142,16 @@ void MainWindow::getNetworkInterfaces() {
 				ipAddresses << entry.ip();
 				nics << ni;
 				MAIN_DEBUG << "  -> ip address: " << qPrintable(entry.ip().toString());
-				m_settings->m_ipAddressesList.append(entry.ip());
-				m_settings->m_networkInterfaces.append(ni);
+				set->m_ipAddressesList.append(entry.ip());
+				set->m_networkInterfaces.append(ni);
 				
-				m_settings->addServerNetworkInterface(ni.humanReadableName(), entry.ip().toString());
-				m_settings->addHPSDRDeviceNIC(ni.humanReadableName(), entry.ip().toString());
+				set->addServerNetworkInterface(ni.humanReadableName(), entry.ip().toString());
+				set->addHPSDRDeviceNIC(ni.humanReadableName(), entry.ip().toString());
 			}
 		}
 	}
 
-	m_settings->setNumberOfNetworkInterfaces(nics.size());
+	set->setNumberOfNetworkInterfaces(nics.size());
 	MAIN_DEBUG << "found " << nics.size() << " valid ip addresses.";
 
 	//emit serverWidgetEvent();
@@ -1797,8 +2163,8 @@ void MainWindow::getNetworkInterfaces() {
 	if (ipAddresses.isEmpty()) {
 
 		// if we did not find one, use IPv4 localhost
-		m_settings->setServerAddr(this, localIP);
-		m_settings->setHPSDRDeviceLocalAddr(this, localIP);
+		set->setServerAddr(this, localIP);
+		set->setHPSDRDeviceLocalAddr(this, localIP);
 	}
 	else {
 
@@ -1810,12 +2176,12 @@ void MainWindow::getNetworkInterfaces() {
 
 				if (ipAddresses.at(i).toString() == serverIpAddress) {
 
-					m_settings->setServerWidgetNIC(i);
+					set->setServerWidgetNIC(i);
 					serverIdx = i;
 				}
 				if (ipAddresses.at(i).toString() == hpsdrDeviceLocalIpAddress) {
 
-					m_settings->setHPSDRWidgetNIC(i);
+					set->setHPSDRWidgetNIC(i);
 					metisIdx = i;
 				}
 			}
@@ -1827,14 +2193,8 @@ void MainWindow::getNetworkInterfaces() {
 		if (broadcastAddresses.at(i) != QHostAddress::Null) {
 				
 			if (serverIdx < 0) {
-				m_settings->setServerWidgetNIC(i);
-				m_settings->setServerAddr(this, ipAddresses.at(i).toString());
-
-				/*message = "[server]: network interface set to: %1 (%2).";
-				showMessage(
-					message.arg(
-							nics.at(i).humanReadableName(),
-							ipAddresses.at(i).toString()));*/
+				set->setServerWidgetNIC(i);
+				set->setServerAddr(this, ipAddresses.at(i).toString());
 			}
 			else {
 
@@ -1847,35 +2207,31 @@ void MainWindow::getNetworkInterfaces() {
 
 			if (metisIdx < 0) {
 
-				m_settings->setHPSDRWidgetNIC(i);
-				m_settings->setHPSDRDeviceLocalAddr(this, ipAddresses.at(i).toString());
+				set->setHPSDRWidgetNIC(i);
+				set->setHPSDRDeviceLocalAddr(this, ipAddresses.at(i).toString());
 
-				message = "[server]: HPSDR network device interface set to: %1 (%2).";
-				showMessage(
-					message.arg(
-							nics.at(i).humanReadableName(),
-							ipAddresses.at(i).toString()));
+				MAIN_DEBUG 	<< "HPSDR network device interface set to: "
+							<< nics.at(i).humanReadableName()
+							<< "(" << ipAddresses.at(i).toString() << ")";
 			}
 			else {
-			
-				message = "[server]: HPSDR network device interface set to: %1 (%2).";
-				showMessage(
-					message.arg(
-							nics.at(metisIdx).humanReadableName(),
-							ipAddresses.at(metisIdx).toString()));
+
+				MAIN_DEBUG 	<< "HPSDR network device interface set to: "
+							<< nics.at(metisIdx).humanReadableName()
+							<< "(" << ipAddresses.at(metisIdx).toString() << ")";
 			}
 		}
 
 		/*for (int i = 0; i < nics.size(); ++i) {
 			if (serverIdx != i) {
-				m_settings->setServerWidgetNIC(i);
+				set->setServerWidgetNIC(i);
 				break;
 			}
 		}
 
 		for (int i = 0; i < nics.size(); ++i) {
 			if (metisIdx != i) {
-				m_settings->setHPSDRWidgetNIC(i);
+				set->setHPSDRWidgetNIC(i);
 				break;
 			}
 		
@@ -1885,9 +2241,9 @@ void MainWindow::getNetworkInterfaces() {
 	//emit serverWidgetEvent();
 	//emit metisWidgetEvent();
 
-	//m_settings->setServerWidgetNIC(1);
-	MAIN_DEBUG << "using ip address " << qPrintable(m_settings->getServerAddr()) << " for the server.";
-	MAIN_DEBUG << "using ip address " << qPrintable(m_settings->getHPSDRDeviceLocalAddr()) << " for connecting to a HPSDR device.";
+	//set->setServerWidgetNIC(1);
+	MAIN_DEBUG << "using ip address " << qPrintable(set->getServerAddr()) << " for the server.";
+	MAIN_DEBUG << "using ip address " << qPrintable(set->getHPSDRDeviceLocalAddr()) << " for connecting to a HPSDR device.";
 
 	
 }
@@ -1904,7 +2260,6 @@ void MainWindow::loadWavFile(
 
 	m_dataEngine->loadWavFile(fileName);
 }
-
  
 /*!
 	\brief suspend playing wav-file.
@@ -1916,7 +2271,6 @@ void MainWindow::suspendSignal(
 
 	m_dataEngine->suspend();
 }
-
  
 /*!
 	\brief start playback.
@@ -1928,7 +2282,6 @@ void MainWindow::startPlaybackSignal(
 
 	m_dataEngine->startPlayback();
 }
-
  
 /*!
 	\brief show the audio settings dialog.
@@ -1965,14 +2318,14 @@ void MainWindow::clearNetworkIOComboBoxEntry() {
 /*!
 	\brief generates an initial message for the logging widget-
 */
-void MainWindow::initialMessage() {
-
-	QString str = m_settings->versionStr();
-	str.prepend("cuSDR ");
-	str.append(". \nOpenGL enabled HPSDR Front end \n(C) 2010-2012 Hermann von Hasseln, DL3HVH.\n");
-	m_msgBrowser->appendPlainText(str);
-	m_msgBrowser->appendPlainText("");
-}
+//void MainWindow::initialMessage() {
+//
+//	QString str = set->versionStr();
+//	str.prepend("cuSDR ");
+//	str.append(". \nOpenGL enabled HPSDR Front end \n(C) 2010-2012 Hermann von Hasseln, DL3HVH.\n");
+//	m_msgBrowser->appendPlainText(str);
+//	m_msgBrowser->appendPlainText("");
+//}
  
 //*******************************************************************************
 // Application's window stuff
@@ -2000,6 +2353,7 @@ void MainWindow::getRegion() {
 void MainWindow::getSelectedFrame(
 		QPoint p					/*!<[in] QPoint p selected */
 ) {
+        Q_UNUSED(p)
 	/*if (m_leftFrame.contains(p))		m_resizePosition = Left;
 	else 
 	if (m_topFrame.contains(p))			m_resizePosition = Top;
@@ -2395,7 +2749,7 @@ void MainWindow::closeEvent(
 ) {
 	Q_UNUSED(event);
 
-	if (m_settings->mainPower())
+	if (set->getMainPower())
 		startButtonClickedEvent();
 
 	mainBtnList.clear();
@@ -2428,11 +2782,11 @@ void MainWindow::closeEvent(
 		m_oglDisplayPanel = NULL;
 	}
 
-	if (m_radioWidget) {
+	if (m_radioTabWidget) {
 		
-		disconnect(m_radioWidget, 0, 0, 0);
-		delete m_radioWidget;
-		m_radioWidget = NULL;
+		disconnect(m_radioTabWidget, 0, 0, 0);
+		delete m_radioTabWidget;
+		m_radioTabWidget = NULL;
 	}
 
 	if (m_chirpWidget) {
@@ -2456,27 +2810,19 @@ void MainWindow::closeEvent(
 		m_hpsdrTabWidget = NULL;
 	}
 
-	if (m_graphicOptionsWidget) {
+	if (m_displayTabWidget) {
 		
-		disconnect(m_graphicOptionsWidget, 0, 0, 0);
-		delete m_graphicOptionsWidget;
-		m_graphicOptionsWidget = NULL;
+		disconnect(m_displayTabWidget, 0, 0, 0);
+		delete m_displayTabWidget;
+		m_displayTabWidget = NULL;
 	}
 
-	if (m_hpsdrServer) {
+	/*if (m_hpsdrServer) {
 
 		disconnect(m_hpsdrServer, 0, 0, 0);
 		delete m_hpsdrServer;
 		m_hpsdrServer = NULL;
-	}
-
-	if (m_msgBrowser) {
-
-		delete m_msgBrowser;
-		m_msgBrowser = NULL;
-	}
-
-	
+	}*/
 }
  
 /*!
@@ -2548,16 +2894,16 @@ void MainWindow::mousePressEvent(QMouseEvent *event) {
 
 NetworkIODialog::NetworkIODialog(QWidget *parent)
     :   QDialog(parent)
-	,	m_settings(Settings::instance())
+	,	set(Settings::instance())
 {
 	int btnWidth = 74;
 	int btnHeight = 18;
 
-	m_deviceCards = m_settings->getMetisCardsList();
+	m_deviceCards = set->getMetisCardsList();
 
 	setWindowModality(Qt::NonModal);
 	setWindowOpacity(0.9);
-	setStyleSheet(m_settings->getDialogStyle());
+	setStyleSheet(set->getDialogStyle());
 
 	setMouseTracking(true);
 
@@ -2571,20 +2917,20 @@ NetworkIODialog::NetworkIODialog(QWidget *parent)
 	QVBoxLayout *dialogLayout = new QVBoxLayout(this);
 
 	m_deviceComboBox = new QComboBox(this);
-	m_deviceComboBox->setStyleSheet(m_settings->getComboBoxStyle());
+	m_deviceComboBox->setStyleSheet(set->getComboBoxStyle());
 	m_deviceComboBox->setMinimumContentsLength(30);
 	
 	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
 	QLabel *titleLabel = new QLabel(tr("found more than one device:"), this);
 	titleLabel->setFont(m_titleFont);
-	titleLabel->setStyleSheet(m_settings->getLabelStyle());
+	titleLabel->setStyleSheet(set->getLabelStyle());
 	titleLayout->addWidget(titleLabel);
 	dialogLayout->addLayout(titleLayout.data());
 	titleLayout.take(); // ownership transferred to dialogLayout
 
 	QScopedPointer<QHBoxLayout> metisDeviceLayout(new QHBoxLayout);
 	QLabel *ipAddressLabel = new QLabel(tr("Device (IP Addr):"), this);
-	ipAddressLabel->setStyleSheet(m_settings->getLabelStyle());
+	ipAddressLabel->setStyleSheet(set->getLabelStyle());
 	metisDeviceLayout->addWidget(ipAddressLabel);
 	metisDeviceLayout->addWidget(m_deviceComboBox);
 	dialogLayout->addLayout(metisDeviceLayout.data());
@@ -2631,7 +2977,7 @@ void NetworkIODialog::okBtnClicked() {
 
 	if (m_deviceCards.length() > 0) {
 		
-		m_settings->setCurrentHPSDRDevice(m_deviceCards.at(m_deviceComboBox->currentIndex()));
+		set->setCurrentHPSDRDevice(m_deviceCards.at(m_deviceComboBox->currentIndex()));
 		NETWORKDIALOG_DEBUG << "Network device at: " << m_deviceCards.at(m_deviceComboBox->currentIndex()).ip_address.toString() << " selected.";
 		accept();
 	}
@@ -2642,7 +2988,7 @@ void NetworkIODialog::okBtnClicked() {
 void NetworkIODialog::addDeviceComboBoxItem(QString str) {
 
 	m_deviceComboBox->addItem(str);
-	m_deviceCards = m_settings->getMetisCardsList();
+	m_deviceCards = set->getMetisCardsList();
 }
 
 void NetworkIODialog::clearDeviceComboBoxItem() {
@@ -2656,14 +3002,14 @@ void NetworkIODialog::clearDeviceComboBoxItem() {
 
 WarningDialog::WarningDialog(QWidget *parent)
     :   QDialog(parent)
-	,	m_settings(Settings::instance())
+	,	set(Settings::instance())
 	,	m_btnWidth(74)
 	,	m_btnHeight(18)
 {
 	setWindowModality(Qt::NonModal);
 	setWindowTitle("Warning");
 	setWindowOpacity(0.9);
-	setStyleSheet(m_settings->getDialogStyle());
+	setStyleSheet(set->getDialogStyle());
 
 	setMouseTracking(true);
 

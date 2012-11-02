@@ -42,6 +42,13 @@
 #include "cusdr_receiver.h"
 
 
+#ifdef LOG_SERVER
+#   define SERVER_DEBUG qDebug().nospace() << "Server::\t"
+#else
+#   define SERVER_DEBUG nullDebug()
+#endif
+
+
 class HPSDRServer : public QTcpServer {
 
 	Q_OBJECT
@@ -59,25 +66,26 @@ public slots:
 	int		getAudioReceiver() { return audioReceiver; }
 
 private:
-	Settings*					m_settings;
+	Settings*					set;
 
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
 
-	QList<HPSDRReceiver*>		m_rxList;
-	QList<QTcpSocket*>			m_clientConnections;
+	QList<Receiver *>			m_rxList;
+	QList<QTcpSocket *>			m_clientConnections;
 
 	int			m_receivers[MAX_RECEIVERS];
 	
 	QMutex		m_serverMutex;
 	
 	QString		m_message;
+	QString		m_separators;
 
 	qint64		m_bytesRead;
 
 	char		command[80];
-	char*		seps;
+	//char*		seps;
 	char*		token;
 	char*		next_token;
 	char*		response;
@@ -95,7 +103,7 @@ private slots:
 					QSDR::_DataEngineState state);
 
 	void 	masterSwitchChanged(QObject *sender, bool power);
-	void	rxListChanged(QList<HPSDRReceiver *> rxList);
+	void	rxListChanged(QList<Receiver *> rxList);
 	void	setupConnections();
 	void 	handleNewConnection();
     void 	clientDisconnected();

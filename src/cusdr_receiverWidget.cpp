@@ -24,8 +24,8 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
  
-#include <QtGui>
-#include <QDebug>
+//#include <QtGui>
+//#include <QDebug>
 
 #include "cusdr_receiverWidget.h"
 #include "cusdr_settings.h"
@@ -42,11 +42,6 @@ ReceiverWidget::ReceiverWidget()
 
 	setMouseTracking(true);
 	//mouse_over = false;
-
-	QFont titleFont;
-	titleFont.setStyleStrategy(QFont::PreferQuality);
-	titleFont.setPointSizeF(8);
-	titleFont.setFamily("Arial");
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(1);

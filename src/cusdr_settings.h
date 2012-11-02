@@ -27,34 +27,20 @@
 #ifndef CUSDR_SETTINGS_H
 #define CUSDR_SETTINGS_H
 
-#include <QtGlobal>
+#define DEBUG
+
+
 #include <QObject>
-#include <QSettings>
-#include <QDateTime>
-#include <QTimer>
 #include <QErrorMessage>
-#include <QFile>
-#include <QFont>
 #include <QMutex>
-#include <QString>
-#include <QTextStream>
 #include <QtNetwork>
 #include <QtMultimedia/qaudio.h>
 #include <QtMultimedia/QAudioFormat>
-#include <QtCore/QVector>
-
-//#define WIN32_LEAN_AND_MEAN
-//#define _WIN32_WINNT 0x0601  // Win 7
-//#define _WIN32_WINNT 0x0501  // WinXP
-
-//#define LOG_ALL
-
 
 #include "cusdr_hamDatabase.h"
-#include "cusdr_complex.h"
 
 // test for OpenCL
-#include "qclcontext.h"
+#include "CL/qclcontext.h"
 
 
 // **************************************
@@ -79,6 +65,7 @@
 
 #define ONEPI 3.14159265358979323846264338328
 #define TWOPI 6.28318530717958647692528676656
+//#define AGCOFFSET 33.0
 
 #define MAXFREQUENCY 61440000
 #define MINDBM -180
@@ -90,8 +77,10 @@
 // receiver settings
 
 #define MAX_RECEIVERS				7
+#define MAX_BANDS					12
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
+#define BANDSCOPE_BUFFER_SIZE		4096
 
 #define								SMALL_PACKETS
 #define BIGWIDEBANDSIZE				16384
@@ -114,6 +103,8 @@
 
 #define METIS_HEADER_SIZE			8
 #define METIS_DATA_SIZE				1032
+
+#define ALEX_PARAMETERS				15
 
 // uncomment to compile code that allows for SYNC error recovery
 #define RESYNC
@@ -153,40 +144,16 @@
 #define LT2208_RANDOM_OFF			0x00
 #define LT2208_RANDOM_ON			0x10
 
-#define SIMPLEX						0x00
-#define DUPLEX						0x04
+//#define SIMPLEX						0x00
+//#define DUPLEX						0x04
 
-#define BANDSCOPE_BUFFER_SIZE		4096
-
-#ifdef RESYNC
-
-	#define			SYNC_0			0
-	#define			SYNC_1			1
-	#define			SYNC_2			2
-	#define			CONTROL_0		3
-	#define			CONTROL_1		4
-	#define			CONTROL_2		5
-	#define			CONTROL_3		6
-	#define			CONTROL_4		7
-	#define			LEFT_SAMPLE_0	8
-	#define			LEFT_SAMPLE_1	9
-	#define			LEFT_SAMPLE_2	10
-	#define			RIGHT_SAMPLE_0	11
-	#define			RIGHT_SAMPLE_1	12
-	#define			RIGHT_SAMPLE_2	13
-	#define			MIC_SAMPLE_0	14
-	#define			MIC_SAMPLE_1	15
-
-	static int		decode_state;
-
-#endif
 
 // **************************************
 // Metis definitions
 
-#define MAX_METIS_CARDS 10
-#define DISCOVER_IDLE 0
-#define DISCOVER_SENT 1
+//#define MAX_METIS_CARDS 10
+//#define DISCOVER_IDLE 0
+//#define DISCOVER_SENT 1
 #define METIS_PORT 1024
 //#define DATA_PORT 8886
 
@@ -196,9 +163,9 @@
 #define	WAVEFORM_WINDOW_DURATION 250000
 #define WAVEFORM_TILE_LENGTH 4096
 
-
-#include "cusdr_fspectrum.h"
-#include "cusdr_queue.h"
+//#include "cusdr_about.h"
+#include "AudioEngine/cusdr_fspectrum.h"
+#include "Util/cusdr_queue.h"
 
 
 // **************************************
@@ -212,11 +179,14 @@ namespace QSDR {
 		NotImplemented,
 		HwIOError,
 		ServerModeError,
-		OpenError, 
+		OpenError,
+		DataReceiverThreadError,
 		DataProcessThreadError,
 		WideBandDataProcessThreadError,
 		AudioThreadError,
+		ChirpDataProcessThreadError,
 		UnderrunError, 
+		FirmwareError,
 		FatalError
 	};
 
@@ -226,16 +196,19 @@ namespace QSDR {
 		DataEngineUp
 	};
 
+	enum _DSPCore {
+
+		QtDSP,
+        CudaDSP,
+		ExternalDSP
+	};
+
 	enum _ServerMode {
 
 		NoServerMode,
-        //InternalDSP,
-		DttSP,
-		QtDSP,
-        //CudaDSP,
+		SDRMode,
 		ChirpWSPR,
 		ChirpWSPRFile,
-		ExternalDSP,
 		DemoMode
 	};
 
@@ -252,6 +225,7 @@ Q_DECLARE_METATYPE(QSDR::_DataEngineState)
 Q_DECLARE_METATYPE(QSDR::_ServerMode)
 Q_DECLARE_METATYPE(QSDR::_HWInterfaceMode)
 
+
 // **************************************
 // Graphic modes
 
@@ -264,7 +238,7 @@ namespace QSDRGraphics {
 		Solid
 	};
 
-	enum _WaterfallColorScheme { 
+	enum _WfScheme {
 		
 		simple,
 		enhanced,
@@ -286,28 +260,11 @@ namespace QSDRGraphics {
 }
 
 Q_DECLARE_METATYPE(QSDRGraphics::_Panadapter)
-Q_DECLARE_METATYPE(QSDRGraphics::_WaterfallColorScheme)
+Q_DECLARE_METATYPE(QSDRGraphics::_WfScheme)
 //Q_DECLARE_METATYPE(QSDRGraphics::_Colors)
 
 
 // **************************************
-// receiver modes
-
-//namespace QRadio {
-//
-//	typedef struct _metisCard {
-//
-//		QHostAddress	ip_address;
-//		char			mac_address[18];
-//
-//	} TMetiscard;
-//
-//	QList<TMetiscard>	TMetiscards;
-//}
-//
-//Q_DECLARE_METATYPE (QRadio::TMetiscard)
-//Q_DECLARE_METATYPE (QRadio::TMetiscards)
-
 enum {
 	prefixNothing = 0,	/*!< No prefix. */
 
@@ -345,9 +302,33 @@ typedef struct _frequency {
 	int	freqMHz;
 	int	freqkHz;
 
+	long frequency;
+
 } TFrequency;
 
+typedef struct _hpsdrDevices {
+
+	bool 	mercuryPresence;
+	bool 	penelopePresence;
+	bool 	pennylanePresence;
+	bool 	excaliburPresence;
+	bool 	alexPresence;
+	bool	hermesPresence;
+	bool	metisPresence;
+
+	int 	mercuryFWVersion;
+	int 	penelopeFWVersion;
+	int 	pennylaneFWVersion;
+	int 	excaliburFWVersion;
+	int 	alexFWVersion;
+	int		hermesFWVersion;
+	int  	metisFWVersion;
+
+} THPSDRDevices;
+
 typedef struct _ccParameterRx {
+
+	THPSDRDevices	devices;
 
 	uchar	roundRobin;	// roundRobin is varied in a round-robin fashion in order to decode
 						// all values which are sent in sequence. 
@@ -363,9 +344,9 @@ typedef struct _ccParameterRx {
 	bool	cyclopsPLL;	// Cyclops PLL locked (0 = unlocked, 1 = locked)
 	bool	cyclops;	// Cyclops - Mercury frequency changed, bit toggles 
 
-	int		mercuryFirmwareVersion;			// Mercury firmware version
-	int		penelopeFirmwareVersion;		// Penelope firmware version
-	int		networkDeviceFirmwareVersion;	// Metis/Hermes firmware version
+	//int		mercuryFirmwareVersion;			// Mercury firmware version
+	//int		penelopeFirmwareVersion;		// Penelope firmware version
+	//int		networkDeviceFirmwareVersion;	// Metis/Hermes firmware version
 
 	quint16	ain1;		// Forward Power from Alex or Apollo
 	quint16	ain2;		// Reverse Power from Alex or Apollo
@@ -385,12 +366,33 @@ typedef struct _ccParameterRx {
 typedef struct _ccParameterTx {
 
 	bool	mox;
+	bool	ptt;
 	bool	lineIn;
 	bool	micGain20dB;
+	bool	pennyOCenabled;
+	bool	vnaMode;
+
+	uchar	clockByte;
+	uchar	timeStamp;
+	uchar	commonMercuryFrequencies;
 
 	int		hpsdr10MhzSource;
 	int		hpsdr122_88MhzSource;
 	int		hpsdrConfig;
+	int		duplex;
+	int		mercuryAttenuator;
+	int		dither;
+	int		random;
+	int		currentAlexState;
+
+	HamBand		currentBand;
+
+	QList<int>					mercuryAttenuators;
+	QList<int>					alexStates;
+	//QList<TAlexConfiguration>	alexConfiguration;
+	quint16						alexConfig;
+	QList<int>					rxJ6pinList;
+	QList<int>					txJ6pinList;
 
 } TCCParameterTx;
 
@@ -405,14 +407,11 @@ typedef struct _hpsdrParameter {
 
 	qVectorFloat	wbWindow;
 
-	CPX*	cpxIn;
-	CPX*	cpxOut;
-	CPX*	cpxWBIn;
-	CPX*	cpxWBOut;
-	CPX*	cpxWBTmp;
-	CPX*	cpxTmp;
+	//CPX		cpxIn;
+	//CPX		cpxOut;
+	//CPX		cpxTmp;
 
-	QByteArray	audioDatagram;
+	QByteArray				audioDatagram;
 	
 	QHQueue<QByteArray>		iq_queue;
 	QHQueue<QByteArray>		au_queue;
@@ -449,15 +448,12 @@ typedef struct _hpsdrParameter {
 	
 	int		currentMetisCard;
 
-	int		preamp;
-	int		dither;
-	int		random;
-
 	//int		hpsdr_10MhzSource;
 	//int		hpsdr_122_88MhzSource;
 	int		mic_source;
 	int		rxClass;
 	int		rx_freq_change;
+	int		tx_freq_change;
 	
 	float	mic_gain;
 	float	mic_left_buffer[BUFFER_SIZE];
@@ -482,44 +478,79 @@ typedef struct _hpsdrParameter {
 
 } THPSDRParameter;
 
-//Q_DECLARE_METATYPE (THPSDRParameter)
-
 typedef struct _networkDeviceCard {
 
-		QHostAddress	ip_address;
-		char			mac_address[18];
-		int				boardID;
-		QString			boardName;
+	QHostAddress	ip_address;
+	char			mac_address[18];
+	int				boardID;
+	QString			boardName;
 
 } TNetworkDevicecard;
 
 Q_DECLARE_METATYPE (TNetworkDevicecard)
 Q_DECLARE_METATYPE (QList<TNetworkDevicecard>)
 
+
+
 typedef struct _receiver {
+
+	QSDR::_DSPCore		dspCore;
 
 	HamBand				hamBand;
 	DSPMode				dspMode;
 	AGCMode				agcMode;
 	TDefaultFilterMode	defaultFilterMode;
+
 	QList<long>			lastFrequencyList;
+	QList<int>			mercuryAttenuators;
+	QList<qreal>		dBmPanScaleMinList;
+	QList<qreal>		dBmPanScaleMaxList;
+	QList<DSPMode>		dspModeList;
+
+	bool	hangEnabled;
+	bool	agcLines;
 
 	long	frequency;
 
 	float	audioVolume;
 
+	qreal	mouseWheelFreqStep;
 	qreal	filterLo;
 	qreal	filterHi;
-	qreal	dBmPanScaleMin;
-	qreal	dBmPanScaleMax;
+	qreal	agcSlope;
+	qreal	acgGain;
+	qreal	acgThreshold_dB;
+	qreal	agcHangThreshold;
+	qreal	agcHangLevel;
+	qreal	agcMaximumGain_dB;
+	qreal	agcAttackTime;
+	qreal	agcDecayTime;
+	qreal	agcHangTime;
+	qreal	agcFixedGain_dB;
+	qreal	agcVariableGain;
 
 	int		sampleRate;
-	int		acgGain;
-	int		waterfallTime;
+	int		framesPerSecond;
 	int		waterfallOffsetLo;
 	int		waterfallOffsetHi;
 
 } TReceiver;
+
+typedef struct _transmitter {
+
+	QSDR::_DSPCore		dspCore;
+
+	HamBand				hamBand;
+	DSPMode				dspMode;
+	AGCMode				agcMode;
+	TDefaultFilterMode	defaultFilterMode;
+
+	bool	txAllowed;
+	long	frequency;
+
+	float	audioVolume;
+
+} TTransmitter;
 
 typedef struct t_panadapterColors {
 
@@ -536,11 +567,12 @@ typedef struct t_panadapterColors {
 	QColor		distanceLineColor;
 	QColor		distanceLineFilledColor;
 	QColor		panCenterLineColor;
+	QColor		gridLineColor;
 
 } TPanadapterColors;
 
 
-typedef enum {
+typedef enum _smeterType {
 
 	SIGNAL_STRENGTH,
 	AVG_SIGNAL_STRENGTH,
@@ -583,9 +615,8 @@ typedef enum _windowtype {
 
 } TWindowtype;
 
-static int	currentRx;
 
-class HPSDRReceiver;
+class Receiver;
 
 // *********************************************************************
 // thread class
@@ -627,6 +658,8 @@ public:
 
 	virtual ~Settings();
 
+	QMutex 			settingsMutex;
+
 private:
 	Settings(QObject *parent = 0);
 
@@ -651,27 +684,29 @@ signals:
 	void graphicModeChanged(
 		QObject *sender,
 		QSDRGraphics::_Panadapter panMode,
-		QSDRGraphics::_WaterfallColorScheme waterColorScheme);
+		QSDRGraphics::_WfScheme waterColorScheme);
 		//QSDRGraphics::_Colors colorItem);
 
+	void cpuLoadChanged(short load);
+	void txAllowedChanged(QObject* sender, bool value);
 	void multiRxViewChanged(int view);
 	void sMeterValueChanged(int rx, float value);
 	void spectrumBufferChanged(int rx, const float* buffer);
 	void postSpectrumBufferChanged(int rx, const float* buffer);
 	void widebandSpectrumBufferChanged(const qVectorFloat &buffer);
 	void widebandSpectrumBufferReset();
-	void rxListChanged(QList<HPSDRReceiver *> rxList);
+	void rxListChanged(QList<Receiver *> rxList);
 	void clientConnectedChanged(QObject* sender, bool connect);
 	void clientNoConnectedChanged(QObject* sender, int client);
 	void audioRxChanged(QObject* sender, int rx);
 	void receiverChanged(int value);
-	void currentReceiverChanged(int rx);
+	void currentReceiverChanged(QObject *sender, int rx);
 	void connectedChanged(QObject *sender, bool connect);
 
 	void clientConnectedEvent(int client);
 	void clientDisconnectedEvent(int client);
 	void rxConnectedStatusChanged(QObject* sender, int rx, bool value);
-	void framesPerSecondChanged(QObject* sender, int value);
+	void framesPerSecondChanged(QObject* sender, int rx, int value);
 	void graphicResolutionChanged(QObject* sender, int value); 
 	
 	void settingsFilenameChanged(QString filename);
@@ -685,7 +720,8 @@ signals:
 	void manualSocketBufferChanged(QObject* sender, bool value);
 	//void metisCardListChanged(QList<TMetiscard> list);
 	void metisCardListChanged(const QList<TNetworkDevicecard> &list);
-	void hpsdrDeviceChanged(TNetworkDevicecard card);
+	void hpsdrDevicesChanged(QObject *sender, THPSDRDevices devices);
+	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
@@ -700,10 +736,9 @@ signals:
 	void showNetworkIO();
 	void showWarning(const QString &msg);
 
-	//void callsignChanged(const QString &callsign);
 	void callsignChanged();
 
-	void mouseWheelFreqStepChanged(QObject *sender, double value);
+	void mouseWheelFreqStepChanged(QObject *sender, int rx, qreal value);
 	void mainVolumeChanged(QObject *sender, int rx, float volume );
 
 	//void hermesPresenceChanged(bool value);
@@ -718,6 +753,16 @@ signals:
 	void alexPresenceChanged(bool value);
 	void excaliburPresenceChanged(bool value);
 	void metisVersionChanged(int value);
+	//void alexConfigurationChanged(const QList<TAlexConfiguration> &conf);
+	void alexConfigurationChanged(quint16 config);
+	//void alexParametersChanged(TAlexParameters p);
+	void alexStatesChanged(const QList<int> &states);
+	void alexStateChanged(HamBand band, const QList<int> &states);
+	void alexStateChanged(int pos, int value);
+	void alexManualStateChanged(QObject *sender, bool value);
+	void pennyOCEnabledChanged(bool value);
+	void rxJ6PinsChanged(const QList<int> &states);
+	void txJ6PinsChanged(const QList<int> &states);
 
 	void protocolSyncChanged(int value);
 	void adcOverflowChanged(int value);
@@ -728,7 +773,8 @@ signals:
 	void numberOfRXChanged(QObject *sender, int value);
 	void coupledRxChanged(QObject *sender, int value);
 	void sampleRateChanged(QObject *sender, int value);
-	void preampChanged(QObject *sender, int value);
+	void mercuryAttenuatorChanged(QObject *sender, HamBand band, int value);
+	//void mercuryAttenuatorsChanged(QObject *sender, const QList<int> &values);
 	void ditherChanged(QObject *sender, int value);
 	void randomChanged(QObject *sender, int value);
 	void src10MhzChanged(QObject *sender, int source);
@@ -744,10 +790,22 @@ signals:
 
 	void iqPortChanged(QObject* sender, int rx, int port);
 
-	void hamBandChanged(QObject *sender, int rx, HamBand band);
+	void hamBandChanged(QObject *sender, int rx, bool byButton, HamBand band);
 	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
-	void agcModeChanged(QObject *sender, int rx, AGCMode mode);
+	void agcModeChanged(QObject *sender, int rx, AGCMode mode, bool hangEnabled);
+	void agcHangEnabledChanged(QObject *sender, int rx, bool hang);
 	void agcGainChanged(QObject *sender, int rx, int value);
+	void agcThresholdChanged_dB(QObject *sender, int rx, qreal value);
+	void agcFixedGainChanged_dB(QObject *sender, int rx, qreal value);
+	void agcMaximumGainChanged_dB(QObject *sender, int rx,  qreal value);
+	void agcHangThresholdChanged(QObject *sender, int rx, int value);
+	void agcHangThresholdSliderChanged(QObject *sender, int rx, qreal value);
+	void agcHangLevelChanged_dB(QObject *sender, int rx, qreal value);
+	void agcLineLevelsChanged(QObject *sender, int rx, qreal thresh, qreal hang);
+	void agcVariableGainChanged_dB(QObject *sender, int rx, qreal value);
+	void agcAttackTimeChanged(QObject *sender, int rx, qreal value);
+	void agcDecayTimeChanged(QObject *sender, int rx, qreal value);
+	void agcHangTimeChanged(QObject *sender, int rx, qreal value);
 	void filterFrequenciesChanged(QObject *sender, int rx, qreal low, qreal high);
 	
 	void cudaDevicesChanged(QObject *sender, int value);
@@ -782,7 +840,7 @@ signals:
 	void chirpSpectrumListChanged(const QList<FrequencySpectrum> &spectrumList);
 
 	void displayWidgetHeightChanged(int value);
-	void spectrumSizeChanged(int value);
+	void spectrumSizeChanged(QObject *sender, int value);
 	void panadapterColorChanged();
 	void panGridStatusChanged(bool value);
 	void peakHoldStatusChanged(bool value);
@@ -800,16 +858,20 @@ signals:
 	void dBmScaleWBMinChanged(qreal value);
 	void dBmScaleWBMaxChanged(qreal value);
 
+	void showRadioPopupChanged(bool value);
+
 public:
+	void	debugSystemState();
+
 	int 	loadSettings();
 	int 	saveSettings();
 
-	QSDR::_ServerMode					getCurrentServerMode()		{ return m_serverMode; }
-	QSDR::_HWInterfaceMode				getHWInterface()			{ return m_hwInterface; }
-	QSDR::_DataEngineState				getDataEngineState()		{ return m_dataEngineState; }
-	QSDRGraphics::_Panadapter			getPanadapterMode()			{ return m_panadapterMode; }
-	QSDRGraphics::_WaterfallColorScheme	getWaterfallColorScheme()	{ return m_waterfallColorScheme; }
-	//QSDRGraphics::_Colors				getColorItem()				{ return m_colorItem; }
+	QSDR::_ServerMode			getCurrentServerMode();
+	QSDR::_HWInterfaceMode		getHWInterface();
+	QSDR::_DataEngineState		getDataEngineState();
+	QSDRGraphics::_Panadapter	getPanadapterMode();
+	QSDRGraphics::_WfScheme		getWaterfallColorScheme();
+	//QSDRGraphics::_Colors		getColorItem();
 
 	QString	getServerModeString(QSDR::_ServerMode mode);
 	QString	getHWInterfaceModeString(QSDR::_HWInterfaceMode mode);
@@ -819,32 +881,34 @@ public:
 	QString getValue1000(double value, int valuePrefix, QString unitBase);
 	QString getValue1024(double value, int valuePrefix, QString unitBase);
 
-	bool mainPower()				{ return m_mainPower; }	
-	bool defaultSkin()				{ return m_defaultSkin; }
+	THPSDRDevices getHPSDRDevices();
 
-	bool getPBOPresence()			{ return m_pboFound; }
-	bool getFBOPresence()			{ return m_fboFound; }
+	bool getSettingsLoaded();
+	bool getMainPower();
+	bool getDefaultSkin();
 
-	int getMinimumWidgetWidth()		{ return m_minimumWidgetWidth; }
-	int getMinimumGroupBoxWidth()	{ return m_minimumGroupBoxWidth; }
-	int getFramesPerSecond()		{ return m_framesPerSecond; }
-	int getGraphicResolution()		{ return m_graphicResolution; }
-	int getMultiRxView()			{ return m_multiRxView; }
-	
-	bool settingsLoaded()			{ return m_settingsLoaded; }
-	bool connected()				{ return m_connected; }
-	bool clientConnected()			{ return m_clientConnected; }
+	int getMinimumWidgetWidth();
+	int getMinimumGroupBoxWidth();
+	int getGraphicResolution();
+	int getMultiRxView();
+	bool getPBOPresence();
+	bool getFBOPresence();
 
-	QString titleStr()				{ return m_titleString; }	
-	QString versionStr()			{ return m_versionString; }
-	QString getSettingsFilename()	{ return settingsFilename; }
-	QString callsign()				{ return m_callsignString; }
+	bool getConnected();
+	bool getClientConnected();
+	bool getTxAllowed();
+
+	QString getTitleStr();
+	QString getVersionStr();
+	QString getSettingsFilename();
+	QString getCallsign();
 
 	QString getSDRStyle();
 	QString getWidgetStyle();
 	QString getMainWindowStyle();
 	QString getDockStyle();
-	QString getToolbarStyle();
+	QString getDisplayToolbarStyle();
+	QString getMainBtnToolbarStyle();
 	QString getStatusbarStyle();
 	QString getMessageBoxStyle();
 	QString getLineEditStyle();
@@ -856,6 +920,7 @@ public:
 	QString getTableStyle();
 	QString getComboBoxStyle();
 	QString getSpinBoxStyle();
+	QString getDoubleSpinBoxStyle();
 	QString getMenuStyle();
 	QString getMiniButtonStyle();
 	QString getVolSliderStyle();
@@ -864,12 +929,14 @@ public:
 	QString getTabWidgetStyle();
 	//QString getNewSliderStyle();
 
-	QString getServerAddr()				{ return m_serverAddress; }
-	QString getHPSDRDeviceLocalAddr()	{ return m_hpsdrDeviceLocalAddr; }
-	quint16 serverPort()				{ return m_serverPort; }
-	quint16 listenPort()				{ return m_listenerPort; }
-	quint16 audioPort()					{ return m_audioPort; }
-	quint16	metisPort()					{ return m_metisPort; }
+
+	QString getServerAddr();
+	QString getHPSDRDeviceLocalAddr();
+
+	quint16 getServerPort();
+	quint16 getListenPort();
+	quint16 getAudioPort();
+	quint16	getMetisPort();
 
 	TNetworkDevicecard			getCurrentMetisCard()		{ return m_currentHPSDRDevice; }
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
@@ -878,24 +945,37 @@ public:
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
 	QList<TDefaultFilter>		getDefaultFilterList()		{ return m_defaultFilterList; }
 	TDefaultFilterMode			getCurrentFilterMode()		{ return m_filterMode; }
+	quint16						getAlexConfig()				{ return m_alexConfig; }
+	QList<int>					getAlexStates()				{ return m_alexStates; }
+	QList<long>					getHPFLoFrequencies()		{ return m_HPFLoFrequencyList; }
+	QList<long>					getHPFHiFrequencies()		{ return m_HPFHiFrequencyList; }
+	QList<long>					getLPFLoFrequencies()		{ return m_LPFLoFrequencyList; }
+	QList<long>					getLPFHiFrequencies()		{ return m_LPFHiFrequencyList; }
+	QList<int>					getRxJ6Pins()				{ return m_rxJ6pinList; }
+	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
+	int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
 
+	HamBand						getCurrentHamBand(int rx);
+	QList<int>					getMercuryAttenuators(int rx);
+	//int getMercuryAttenuator();
+
+	bool getPennyOCEnabled()		{ return m_pennyOCEnabled; }
 	int	 getHpsdrNetworkDevices()	{ return m_hpsdrNetworkDevices; }
 	int	 getNetworkInterfacesNo()	{ return m_NetworkInterfacesNo; }
-	bool getMercuryPresence()		{ return m_mercuryPresence; }
-	int	 getMercuryVersion()		{ return m_mercuryVersion; }
-	bool getPenelopePresence()		{ return m_penelopePresence; }
-	int  getPenelopeVersion()		{ return m_penelopeVersion; }
-	bool getPennyLanePresence()		{ return m_pennyLanePresence; }
-	int  getPennyLaneVersion()		{ return m_pennyLaneVersion; }
-	//bool getHermesPresence()		{ return m_hermesPresence; }
-	int  getHermesVersion()			{ return m_hermesVersion; }
+	bool getMercuryPresence()		{ return m_devices.mercuryPresence; }
+	int	 getMercuryVersion()		{ return m_devices.mercuryFWVersion; }
+	bool getPenelopePresence()		{ return m_devices.penelopePresence; }
+	int  getPenelopeVersion()		{ return m_devices.penelopeFWVersion; }
+	bool getPennyLanePresence()		{ return m_devices.pennylanePresence; }
+	int  getPennyLaneVersion()		{ return m_devices.pennylaneFWVersion; }
+	bool getHermesPresence()		{ return m_devices.hermesPresence; }
+	int  getHermesVersion()			{ return m_devices.hermesFWVersion; }
 	int	 getHPSDRHardware()			{ return m_hpsdrHardware; }
-	bool getAlexPresence()			{ return m_alexPresence; }
-	bool getExcaliburPresence()		{ return m_excaliburPresence; }
-	bool getJanusPresence()			{ return m_janusPresence; }
-	bool getMetisPresence()			{ return m_metisPresence; }
-	int  getMetisVersion()			{ return m_metisVersion; }
+	bool getAlexPresence()			{ return m_devices.alexPresence; }
+	bool getExcaliburPresence()		{ return m_devices.excaliburPresence; }
+	bool getMetisPresence()			{ return m_devices.metisPresence; }
+	int  getMetisVersion()			{ return m_devices.metisFWVersion; }
 	int  getSocketBufferSize()		{ return m_socketBufferSize; }
 	bool getManualSocketBufferSize() { return m_manualSocketBufferSize; }
 
@@ -914,7 +994,7 @@ public:
 	bool	getFrequencyRx1onRx2()		{ return m_frequencyRx1onRx2; }
 	int		getSampleRate()				{ return m_sampleRate; }
 
-	int getMercuryPreamp()			{ return m_mercuryPreamp; }
+	//int getMercuryAttenuator()		{ return m_mercuryAttenuator; }
 	int getMercuryDither()			{ return m_mercuryDither; }
 	int getMercuryRandom()			{ return m_mercuryRandom; }
 	int get10MHzSource()			{ return m_10MHzSource; }
@@ -924,9 +1004,14 @@ public:
 	int	getRxTiming()				{ return m_RxTiming; }
 	
 	qreal	getMainVolume(int rx);
+	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
+	AGCMode getAGCMode(int rx);
+	QString getAGCModeString(int rx);
 	int		getAGCGain(int rx);
-
-	double	getMouseWheelFreqStep() { return m_mouseWheelFreqStep; }
+	qreal	getAGCMaximumGain_dB(int rx);
+	qreal	getAGCFixedGain_dB(int rx);
+	int		getAGCHangThreshold(int rx);
+	int		getAGCHangLeveldB(int rx);
 	
 	int		getLowerChirpFreq()				{ return m_lowerChirpFreq; }
 	int		getUpperChirpFreq()				{ return m_upperChirpFreq; }
@@ -969,17 +1054,22 @@ public:
 	bool getSpectrumAveraging()			{ return m_specAveraging; }
 	int getSpectrumAveragingCnt()		{ return m_specAveragingCnt; }
 
+	QMutex 		debugMutex;
+
 public slots:
 	void	setMainPower(QObject *sender, bool power);
 	void	setDefaultSkin(QObject *sender, bool value);
 	void	setSettingsFilename(QString filename);
 	void	setSettingsLoaded(bool loaded);
+	void	setCPULoad(short load);
 	void	setCallsign(const QString &callsign);
 
 	void	setPBOPresence(bool value);
 	void	setFBOPresence(bool value);
 
 	void	setMainVolume(QObject *sender, int rx, float volume);
+	void	setMainVolumeMute(QObject *sender, bool value);
+
 	void	setSystemState(
 				QObject *sender, 
 				QSDR::_Error err, 
@@ -990,16 +1080,17 @@ public slots:
 	void	setGraphicsState(
 				QObject *sender, 
 				QSDRGraphics::_Panadapter panMode,
-				QSDRGraphics::_WaterfallColorScheme);
+				QSDRGraphics::_WfScheme);
 				//QSDRGraphics::_Colors colorItem);
 
+	void setTxAllowed(QObject *sender, bool value);
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, float value);
 	void setSpectrumBuffer(int rx, const float*);
 	void setPostSpectrumBuffer(int rx, const float*);
 	void setWidebandSpectrumBuffer(const qVectorFloat &buffer);
 	void resetWidebandSpectrumBuffer();
-	void setRxList(QList<HPSDRReceiver *> rxList);
+	void setRxList(QList<Receiver *> rxList);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
 	void clearMetisCardList();
@@ -1026,6 +1117,7 @@ public slots:
 	void setAudioRx(QObject* sender, int rx);
 	void setConnected(QObject *sender, bool value);
 
+	void setHPSDRDevices(QObject *sender, THPSDRDevices devices);
 	//void setHermesPresence(bool value);
 	void setHermesVersion(int value);
 	void setHPSDRHardware(int value);
@@ -1039,6 +1131,24 @@ public slots:
 	void setExcaliburPresence(bool value);
 	void setMetisVersion(int value);
 
+	//void setAlexConfiguration(QObject *sender, const QList<TAlexConfiguration> &conf);
+	void setAlexConfiguration(QObject *sender, quint16 conf);
+	void setAlexHPFLoFrequencies(int filter, long value);
+	void setAlexHPFHiFrequencies(int filter, long value);
+	void setAlexLPFLoFrequencies(int filter, long value);
+	void setAlexLPFHiFrequencies(int filter, long value);
+	void setAlexStates(QObject *sender, const QList<int> &states);
+	void setAlexState(QObject *sender, int pos, int value);
+	void setAlexState(QObject *sender, int value);
+	void setAlexToManual(QObject *sender, bool value);
+	int checkAlexState(int state);
+
+	void setPennyOCEnabled(QObject *sender, bool value);
+	void setRxJ6Pin(QObject *sender, HamBand band, int value);
+	void setRxJ6Pins(QObject * sender, const QList<int> &states);
+	void setTxJ6Pin(QObject *sender, HamBand band, int value);
+	void setTxJ6Pins(QObject * sender, const QList<int> &states);
+
 	void setIQPort(QObject *sender, int rx, int port);
 
 	void setProtocolSync(int value);
@@ -1048,11 +1158,11 @@ public slots:
 	void setRcveIQ(int value);
 
 	void setReceivers(QObject *sender, int value);
-	void setReceiver(QObject *sender, int value);
-	void setCurrentReceiver(int value);
+	//void setReceiver(QObject *sender, int value);
+	void setCurrentReceiver(QObject *sender, int value);
 	void setCoupledReceivers(QObject *sender, int value);
 	void setSampleRate(QObject *sender, int value);
-	void setPreamp(QObject *sender, int value);
+	void setMercuryAttenuator(QObject *sender, int value);
 	void setDither(QObject *sender, int value);
 	void setRandom(QObject *sender, int value);
 	void set10MhzSource(QObject *sender, int source);
@@ -1063,13 +1173,13 @@ public slots:
 	void setFrequency(QObject *sender, bool value, int rx, long frequency);
 	void setFrequency(int rx, long frequency);
 	void clientDisconnected(int client);
-	void setFramesPerSecond(QObject *sender, int value);
-	void setMouseWheelFreqStep(QObject *sender, double value);
+	void setFramesPerSecond(QObject *sender, int rx, int value);
+	void setMouseWheelFreqStep(QObject *sender, int rx, qreal value);
 	void setSocketBufferSize(QObject *sender, int value);
 	void setManualSocketBufferSize(QObject *sender, bool value);
 	void setWidebandBuffers(QObject *sender, int value);
 
-	void setSpectrumSize(int value);
+	void setSpectrumSize(QObject *sender, int value);
 	void setdBmPanScaleMin(int rx, qreal value);
 	void setdBmPanScaleMax(int rx, qreal value);
 
@@ -1081,10 +1191,23 @@ public slots:
 	void setWideBandStatus(bool value);
 	void setWideBandData(bool value);
 
-	void setHamBand(QObject *sender, int rx, HamBand band);
+	void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
 	void setDSPMode(QObject *sender, int rx, DSPMode mode);
 	void setAGCMode(QObject *sender, int rx, AGCMode mode);
 	void setAGCGain(QObject *sender, int rx, int value);
+	void setAGCMaximumGain_dB(QObject *sender, int rx, qreal value);
+	void setAGCFixedGain_dB(QObject *sender, int rx, qreal value);
+	void setAGCThreshold_dB(QObject *sender, int rx, qreal value);
+
+	void setAGCHangThresholdSlider(QObject *sender, int rx, qreal value);
+	void setAGCHangThreshold(QObject *sender, int rx, int value);
+	void setAGCHangLevel_dB(QObject *sender, int rx, qreal value);
+	void setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal hang);
+	void setAGCShowLines(QObject *sender, int rx, bool value);
+	void setAGCVariableGain_dB(QObject *sender, int rx, qreal value);
+	void setAGCAttackTime(QObject *sender, int rx, qreal value);
+	void setAGCDecayTime(QObject *sender, int rx, qreal value);
+	void setAGCHangTime(QObject *sender, int rx, qreal value);
 	void setRXFilter(QObject *sender, int rx, qreal low, qreal high);
 	
 	void setOpenCLDevices(QList<QCLDevice>	dev);
@@ -1132,7 +1255,7 @@ public slots:
 	void setPanadapterColors(TPanadapterColors type);
 	void setPanGrid(bool value);
 	void setPeakHold(bool value);
-	void setFramesPerSecond(int value);
+	//void setFramesPerSecond(int value);
 	void setGraphicResolution(int value);
 
 	void setSpectrumAveraging(bool value);
@@ -1147,12 +1270,46 @@ public slots:
 	void showNetworkIODialog();
 	void showWarningDialog(const QString &msg);
 
+	void showRadioPopupWidget();
+
 	QList<long> getFrequencies();
 	
 private slots:
 
 private:
-	QMutex mutex;
+	QSDR::_Error				m_systemError;
+	QSDR::_ServerMode			m_serverMode;
+	QSDR::_HWInterfaceMode		m_hwInterface;
+	QSDR::_DataEngineState		m_dataEngineState;
+
+	QSDRGraphics::_Panadapter	m_panadapterMode;
+	QSDRGraphics::_WfScheme		m_waterfallColorScheme;
+	//QSDRGraphics::_Colors		m_colorItem;
+
+	QAudio::Mode	m_audioMode;
+    QAudio::State	m_audioState;
+	QAudioFormat    m_format;
+
+	THPSDRDevices				m_devices;
+	TDefaultFilterMode			m_filterMode;
+	TPanadapterColors			m_panadapterColors;
+	TNetworkDevicecard			m_currentHPSDRDevice;
+	TTransmitter				m_transmitter;
+
+	QList<TNetworkDevicecard>	m_metisCards;
+	QList<TReceiver>			m_receiverDataList;
+	QList<THamBandFrequencies>	m_bandList;
+	QList<THamBandText>			m_bandTextList;
+	QList<TDefaultFilter>		m_defaultFilterList;
+	QList<QCLDevice>			m_clDevices;
+	QList<QString>				m_rxStringList;
+	QList<int>					m_alexStates;
+	QList<long>					m_HPFLoFrequencyList;
+	QList<long>					m_HPFHiFrequencyList;
+	QList<long>					m_LPFLoFrequencyList;
+	QList<long>					m_LPFHiFrequencyList;
+	QList<int>					m_rxJ6pinList;
+	QList<int>					m_txJ6pinList;
 
 	QString			m_titleString;
 	QString			m_versionString;
@@ -1166,40 +1323,17 @@ private:
 
 	QHostAddress	m_hostAddress;
 
-	quint16			m_serverPort;
-	quint16			m_listenerPort;
-	quint16			m_audioPort;
-	quint16			m_metisPort;
 
-	QAudio::Mode	m_audioMode;
-    QAudio::State	m_audioState;
-	QAudioFormat    m_format;
+	quint16		m_serverPort;
+	quint16		m_listenerPort;
+	quint16		m_audioPort;
+	quint16		m_metisPort;
+	quint16		m_alexConfig;
 
-	QSDR::_Error				m_systemError;
-	QSDR::_ServerMode			m_serverMode;
-	QSDR::_HWInterfaceMode		m_hwInterface;
-	QSDR::_DataEngineState		m_dataEngineState;
-
-	QSDRGraphics::_Panadapter				m_panadapterMode;
-	QSDRGraphics::_WaterfallColorScheme		m_waterfallColorScheme;
-	//QSDRGraphics::_Colors			m_colorItem;
-
-	TNetworkDevicecard			m_currentHPSDRDevice;
-	QList<TNetworkDevicecard>	m_metisCards;
-	QList<TReceiver>			m_receiverDataList;
-	QList<THamBandFrequencies>	m_bandList;
-	QList<THamBandText>			m_bandTextList;
-	QList<TDefaultFilter>		m_defaultFilterList;
-	QList<QString>				m_rxStringList;
-
-	TDefaultFilterMode			m_filterMode;
-	TPanadapterColors			m_panadapterColors;
-
-	QList<QCLDevice>			m_clDevices;
+	bool	setLoaded;
 
 	bool	m_mainPower;
 	bool	m_defaultSkin;
-	bool	m_settingsLoaded;
 	bool	m_connected;
 	bool	m_clientConnected;
 	bool	m_wideBandDisplayStatus;
@@ -1207,15 +1341,8 @@ private:
 	bool	m_pboFound;
 	bool	m_fboFound;
 	bool	m_manualSocketBufferSize;
+	bool	m_pennyOCEnabled;
 
-	bool	m_mercuryPresence;
-	bool	m_penelopePresence;
-	bool	m_pennyLanePresence;
-	bool	m_alexPresence;
-	bool	m_excaliburPresence;
-	bool	m_janusPresence;
-	bool	m_metisPresence;
-	
 	//bool	main_mute;
 	bool	m_specAveraging;
 	bool	m_panGrid;
@@ -1223,17 +1350,12 @@ private:
 	bool	m_packetsToggle;
 
 	bool	m_frequencyRx1onRx2;
+	bool	m_radioPopupVisible;
 
 	int		m_hpsdrHardware;
 	int		m_hpsdrNetworkDevices;
 	int		m_NetworkInterfacesNo;
 	int		m_socketBufferSize;
-	int		m_mercuryVersion;
-	int		m_penelopeVersion;
-	int		m_pennyLaneVersion;
-	int		m_hermesVersion;
-	int		m_metisVersion;
-
 	int		m_clientNoConnected;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
@@ -1243,7 +1365,7 @@ private:
 	int		m_sampleRate;
 	int		m_mercurySpeed;
 
-	int		m_mercuryPreamp;
+	int		m_mercuryAttenuator;
 	int		m_mercuryDither;
 	int		m_mercuryRandom;
 
@@ -1260,17 +1382,15 @@ private:
 
 	int		m_wbBuffers;
 	int		m_spectrumSize;
-	int		m_specAveragingCnt;
 	int		m_sMeterHoldTime;
 
-	double	m_mouseWheelFreqStep;
+	int		m_specAveragingCnt;
 
 	long freq1;
 	
 	float m_mainVolume;
 
 	int control_register;
-
 	bool connect_at_startup;
 
 	qreal	m_dBmWBScaleMin;
@@ -1281,21 +1401,24 @@ private:
 	qreal	m_filterFrequencyLow;
 	qreal	m_filterFrequencyHigh;
 
-	int		m_lowerChirpFreq;
-	int		m_upperChirpFreq;
 	qreal	m_chirpAmplitude;
-	int		m_chirpSamplingFreq;
+
 	qint64	m_chirpBufferDurationUs;
 	qint64	m_chirpBufferLength;
+
+	bool	m_chirpReceiverOn;
+	bool	m_showChirpFFT;
+	bool	m_chirpUSB;
+
+	int		m_lowerChirpFreq;
+	int		m_upperChirpFreq;
+	int		m_chirpSamplingFreq;
 	int		m_chirpChannels;
 	int		m_chirpRepetitionTimes;
 	int		m_chirpDownSampleRate;
 	int		m_chirpAvgLength;
 	int		m_chirpFilterLowerFrequency;
 	int		m_chirpFilterUpperFrequency;
-	bool	m_chirpReceiverOn;
-	bool	m_showChirpFFT;
-	bool	m_chirpUSB;
 
 	/*bool	m_cudaPresence;
 	int		m_cuda_devices;
@@ -1303,7 +1426,10 @@ private:
 	int		m_cuda_driver_version;
 	int		m_cuda_runtime_version;
 	int		m_current_cuda_device;*/
+
+	void	checkHPSDRDevices();
 };
+
 
 //******************************************************
 // Macros
@@ -1363,6 +1489,7 @@ private:
         qt_assert_x(Q_FUNC_INFO, "CHECKED_CONNECT failed", __FILE__, __LINE__);
 
 
+
 //******************************************************
 // Debug output
 
@@ -1382,155 +1509,6 @@ inline NullDebug nullDebug() { return NullDebug(); }
 #   define SETTINGS_DEBUG nullDebug()
 #endif
 
-#ifdef LOG_MAIN
-#   define MAIN_DEBUG qDebug().nospace() << "Main::\t"
-#else
-#   define MAIN_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_SERVER
-#   define SERVER_DEBUG qDebug().nospace() << "Server::\t"
-#else
-#   define SERVER_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_DATA_ENGINE
-#   define DATA_ENGINE_DEBUG qDebug().nospace() << "DataEngine::\t"
-#else
-#   define DATA_ENGINE_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_DATA_RECEIVER
-#   define DATA_RECEIVER_DEBUG qDebug().nospace() << "DataReceiver::\t"
-#else
-#   define DATA_RECEIVER_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_DATA_PROCESSOR
-#   define DATA_PROCESSOR_DEBUG qDebug().nospace() << "DataProcessor::\t"
-#else
-#   define DATA_PROCESSOR_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_NETWORKDIALOG
-#   define NETWORKDIALOG_DEBUG qDebug().nospace() << "NetworkDialog::\t"
-#else
-#   define NETWORKDIALOG_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_HPSDRIO
-#   define HPSDRIO_DEBUG qDebug().nospace() << "HPSDR IO::\t"
-#else
-#   define HPSDRIO_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_AUDIO_ENGINE
-#   define AUDIO_ENGINE_DEBUG qDebug().nospace() << "AudioEngine::\t"
-#else
-#   define AUDIO_ENGINE_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_AUDIO_WAVFILE
-#   define AUDIO_WAVFILE_DEBUG qDebug().nospace() << "AudioWavFile::\t"
-#else
-#   define AUDIO_WAVFILE_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_AUDIO_RECEIVER
-#   define AUDIO_RECEIVER qDebug().nospace() << "AudioReceiver::\t"
-#else
-#   define AUDIO_RECEIVER nullDebug()
-#endif
-
-#ifdef LOG_AUDIO_PROCESSOR
-#   define AUDIO_PROCESSOR qDebug().nospace() << "AudioProcessor::\t"
-#else
-#   define AUDIO_PROCESSOR nullDebug()
-#endif
-
-#ifdef LOG_CHIRP_PROCESSOR
-#   define CHIRP_PROCESSOR_DEBUG qDebug().nospace() << "ChirpProcessor::\t"
-#else
-#   define CHIRP_PROCESSOR_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_DTTSP_API
-#   define DTTSP_API_DEBUG qDebug().nospace() << "DttSP API::\t"
-#else
-#   define DTTSP_API_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_SPECTRUMANALYSER
-#   define SPECTRUMANALYSER_DEBUG qDebug().nospace() << "SpectrumAnalyzer::\t"
-#else
-#   define SPECTRUMANALYSER_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_WAVEFORM
-#   define WAVEFORM_DEBUG qDebug().nospace() << "WaveForm::\t"
-#else
-#   define WAVEFORM_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_PAINT_EVENT
-#   define WAVEFORM_PAINT_DEBUG qDebug().nospace() << "WaveFormPaint::\t"
-#else
-#   define WAVEFORM_PAINT_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_GRAPHICS
-#   define GRAPHICS_DEBUG qDebug().nospace() << "Graphics::\t"
-#else
-#   define GRAPHICS_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_WBGRAPHICS
-#   define WBGRAPHICS_DEBUG qDebug().nospace() << "WB-Graphics::\t"
-#else
-#   define WBGRAPHICS_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_DISPLAYPANEL
-#   define DISPLAYPANEL_DEBUG qDebug().nospace() << "DisplayPanel::\t"
-#else
-#   define DISPLAYPANEL_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_CUDAGRAPH
-#   define CUDAGRAPH_DEBUG qDebug().nospace() << "CudaGraph::\t"
-#else
-#   define CUDAGRAPH_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_SERVER_WIDGET
-#   define SERVER_WIDGET_DEBUG qDebug().nospace() << "ServerWidget::\t"
-#else
-#   define SERVER_WIDGET_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_CHIRP_WIDGET
-#   define CHIRP_WIDGET_DEBUG qDebug().nospace() << "ChirpWidget::\t"
-#else
-#   define CHIRP_WIDGET_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_RECEIVER
-#   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"
-#else
-#   define RECEIVER_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_FUTUREWATCHER
-#   define FUTUREWATCHER_DEBUG qDebug().nospace() << "FutureWatcher::\t"
-#else
-#   define FUTUREWATCHER_DEBUG nullDebug()
-#endif
-
-#ifdef LOG_ALEX_WIDGET
-#   define ALEX_WIDGET_DEBUG qDebug().nospace() << "AlexWidget::\t"
-#else
-#   define ALEX_WIDGET_DEBUG nullDebug()
-#endif
 
 //******************************************************
 // sleeper function

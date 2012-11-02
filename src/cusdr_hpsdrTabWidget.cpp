@@ -1,5 +1,5 @@
 /**
-* @file cusdr_hpsdrTabWidget.h
+* @file cusdr_hpsdrTabWidget.cpp
 * @brief Hardware settings widget class for cuSDR
 * @author Hermann von Hasseln, DL3HVH
 * @version 0.1
@@ -41,49 +41,43 @@
 
 HPSDRTabWidget::HPSDRTabWidget(QWidget *parent) 
 	: QTabWidget(parent)
-	, m_settings(Settings::instance())
-	, m_minimumWidgetWidth(m_settings->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(m_settings->getMinimumGroupBoxWidth())
+	, set(Settings::instance())
+	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-	setStyleSheet(m_settings->getTabWidgetStyle());
-	//setMinimumWidth(m_minimumWidgetWidth);
-	//setMaximumWidth (247);
+	setStyleSheet(set->getTabWidgetStyle());
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
 	
-	QFont titleFont;
-	titleFont.setStyleStrategy(QFont::PreferQuality);
-	titleFont.setPointSizeF(8);
-	titleFont.setFamily("Arial");
-		
 	m_hpsdrWidget = new HPSDRWidget(this);
-	m_alexWidget = new AlexWidget(this);
-	m_pennyWidget = new PennyWidget(this);
-	m_emptyWidget = new EmptyWidget(this);
-	m_txWidget = new TxWidget(this);
+	m_networkWidget = new NetworkWidget(this);
+	//m_transmitTabWidget = new TransmitTabWidget(this);
+	m_alexTabWidget = new AlexTabWidget(this);
+	m_extCtrlWidget = new ExtCtrlWidget(this);
 
 	this->addTab(m_hpsdrWidget, " Config ");
-	this->addTab(m_txWidget, " Transmit ");
-	this->addTab(m_pennyWidget, " Ext Ctrl ");
-	this->addTab(m_emptyWidget, " PA ");
-	this->addTab(m_alexWidget, " Alex ");
+	this->addTab(m_networkWidget, " Network ");
+	//this->addTab(m_transmitTabWidget, " Transmit ");
+	this->addTab(m_extCtrlWidget, " Ext Ctrl ");
+	this->addTab(m_alexTabWidget, " Alex ");
 
-	if (!m_settings->getPenelopePresence() && !m_settings->getPennyLanePresence() && !QSDR::Hermes) {
+	setTabEnabled(1, true);
 
-		setTabEnabled(1, false);
+	if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
+
 		setTabEnabled(2, false);
-		setTabEnabled(3, false);
+		//setTabEnabled(3, false);
 	}
 
-	if (!m_settings->getAlexPresence())
-		setTabEnabled(4, false);
+	if (!set->getAlexPresence())
+		setTabEnabled(3, false);
 
 	setupConnections();
 }
 
 HPSDRTabWidget::~HPSDRTabWidget() {
 
-	disconnect(m_settings, 0, this, 0);
+	disconnect(set, 0, this, 0);
 	disconnect(this, 0, 0, 0);
 }
 
@@ -100,39 +94,82 @@ QSize HPSDRTabWidget::minimumSizeHint() const {
 void HPSDRTabWidget::setupConnections() {
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set,
+		SIGNAL(systemStateChanged(
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
+					QSDR::_DataEngineState)),
+		this,
+		SLOT(systemStateChanged(
+					QObject *,
+					QSDR::_Error,
+					QSDR::_HWInterfaceMode,
+					QSDR::_ServerMode,
+					QSDR::_DataEngineState)));
+
+	CHECKED_CONNECT(
+		set, 
 		SIGNAL(alexPresenceChanged(bool)),
 		this,
 		SLOT(setAlexPresence(bool)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(penelopePresenceChanged(bool)),
 		this,
 		SLOT(setPennyPresence(bool)));
 
 	CHECKED_CONNECT(
-		m_settings, 
+		set, 
 		SIGNAL(pennyLanePresenceChanged(bool)),
 		this,
 		SLOT(setPennyPresence(bool)));
 }
 
+void HPSDRTabWidget::systemStateChanged(
+	QObject *sender,					/*!<[in] the sender of the signal. */
+	QSDR::_Error err,					/*!<[in] error state. */
+	QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
+	QSDR::_ServerMode mode,				/*!<[in] server mode. */
+	QSDR::_DataEngineState state		/*!<[in] data engine state. */
+) {
+	Q_UNUSED (sender)
+	Q_UNUSED (err)
+
+	//if (sender == this) return;
+
+	if (m_hwInterface != hwmode)
+		m_hwInterface = hwmode;
+
+	if (m_hwInterface == QSDR::Hermes)
+		setTabEnabled(2, true);
+	else
+		setTabEnabled(2, false);
+
+	if (m_serverMode != mode)
+		m_serverMode = mode;
+
+	if (m_dataEngineState != state)
+		m_dataEngineState = state;
+}
+
 void HPSDRTabWidget::setPennyPresence(bool value) {
 
-	setTabEnabled(1, value);
+	//setTabEnabled(1, value);
 	setTabEnabled(2, value);
-	setTabEnabled(3, value);
+	//setTabEnabled(3, value);
 }
 
 void HPSDRTabWidget::setAlexPresence(bool value) {
 
-	setTabEnabled(4, value);
+	setTabEnabled(3, value);
 }
 
 void HPSDRTabWidget::addNICChangedConnection() {
 
-	m_hpsdrWidget->addNICChangedConnection();
+	m_networkWidget->addNICChangedConnection();
 }
 
 void HPSDRTabWidget::closeEvent(QCloseEvent *event) {

@@ -27,11 +27,11 @@
 #ifndef _CUSDR_RADIO_WIDGET_H
 #define _CUSDR_RADIO_WIDGET_H
 
-#include <QWidget>
-#include <QGroupBox>
-#include <QLineEdit>
+//#include <QWidget>
+//#include <QGroupBox>
+//#include <QLineEdit>
 
-#include "cusdr_buttons.h"
+#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 
 
@@ -58,17 +58,14 @@ protected:
 	void showEvent(QShowEvent *event);
 
 private:
-	Settings*	m_settings;
+	Settings	*set;
 
 	QGroupBox	*bandGroupBox;
 	QGroupBox	*modeGroupBox;
-	QGroupBox	*agcGroupBox;
 	QGroupBox	*filterGroupABox;
 	QGroupBox	*filterGroupBBox;
 	QGroupBox	*filterGroupCBox;
-
 	QGroupBox	*mercuryBtnGroup();
-	QGroupBox	*sampleRateExclusiveGroup();
 
 	QList<AeroButton *>	filterBtnListA;
 	QList<AeroButton *>	filterBtnListB;
@@ -89,6 +86,7 @@ private:
 	//AeroButton	*bandxxBtn;
 
 	QList<AeroButton *>	bandBtnList;
+	QList<AeroButton *>	dspModeBtnList;
 
 	AeroButton	*lsbBtn;
 	AeroButton	*usbBtn;
@@ -103,16 +101,6 @@ private:
 	AeroButton	*samBtn;
 	AeroButton	*drmBtn;
 
-	QList<AeroButton *>	dspModeBtnList;
-
-	AeroButton	*agcOFF;
-	AeroButton	*agcLONG;
-	AeroButton	*agcSLOW;
-	AeroButton	*agcMED;
-	AeroButton	*agcFAST;
-
-	QList<AeroButton *>	agcModeBtnList;
-	
 	AeroButton	*filter1kBtnA;
 	AeroButton	*filter1k8BtnA;
 	AeroButton	*filter2k1BtnA;
@@ -152,21 +140,17 @@ private:
 	AeroButton	*filterVar1BtnC;
 	AeroButton	*filterVar2BtnC;
 	
-	AeroButton	*preampBtn;
+	AeroButton	*attenuatorBtn;
 	AeroButton	*ditherBtn;
 	AeroButton	*randomBtn;
-
-	AeroButton	*samplerate48Btn;
-	AeroButton	*samplerate96Btn;
-	AeroButton	*samplerate192Btn;
 
 	QIcon	agc_left;
 	QIcon	agc_right;
 
 	QList<TReceiver>	m_receiverDataList;
-
+	QList<DSPMode>		m_dspModeList;
 	HamBand				m_hamBand;
-	DSPMode				m_dspMode;
+	//DSPMode				m_dspMode;
 	AGCMode				m_agcMode;
 	TDefaultFilterMode	m_filterMode;
 
@@ -187,31 +171,26 @@ private:
 private slots:
 	void createBandBtnGroup();
 	void createModeBtnGroup();
-	void createAgcBtnGroup();
 	void createFilterBtnGroupA();
 	void createFilterBtnGroupB();
 	void createFilterBtnGroupC();
 
 	QLabel *createLabel(const QString &text);
 
-	void setCurrentReceiver(int value);
+	void setCurrentReceiver(QObject *sender, int value);
 	void frequencyChanged(QObject* sender, bool value, int rx, long frequency);
 	void bandChangedByBtn();
-	void bandChanged(QObject *sender, int rx, HamBand band);
+	void bandChanged(QObject *sender, int rx, bool byButton, HamBand band);
 	void dspModeChangedByBtn();
 	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
-	void agcModeChangedByBtn();
-	void agcModeChanged(QObject *sender, int rx, AGCMode mode);
 	void filterChangedByBtn();
 	void filterChanged(QObject *sender, int rx, qreal low, qreal high);
 	void filterGroupChanged(DSPMode mode);
 
-	void preampChanged();
+	void attenuatorChanged();
+	void setMercuryAttenuator(QObject *sender, HamBand band, int value);
 	void ditherChanged();
 	void randomChanged();
-	void sampleRateChangedTo48();
-	void sampleRateChangedTo96();
-	void sampleRateChangedTo192();
 	
 signals:
 	void showEvent(QObject *sender);
